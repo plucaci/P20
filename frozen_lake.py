@@ -4,7 +4,7 @@ path.append("frozen_lake.py")
 path.append("tabular.py")
 
 from tabular import FrozenLake, LinearWrapper
-from model_free import linear_sarsa
+from model_free import linear_sarsa, linear_sarsa_p20
 
 def main():
     seed = 0
@@ -25,7 +25,6 @@ def main():
               ['.', '.', '.', '#'],
               ['#', '.', '.', '$']]
 
-    env = FrozenLake(lake, slip=0.1, max_steps=16, seed=seed)
 
     print('# Model-free algorithms')
     max_episodes = 2000
@@ -33,16 +32,24 @@ def main():
     epsilon = 0.5
     gamma = 0.9
 
+    print('## Linear Sarsa (origin): Frozen Lake')
+    env = FrozenLake(lake, slip=0.1, max_steps=16, seed=seed)
     linear_env = LinearWrapper(env)
-
-    print('## Linear Sarsa')
 
     parameters = linear_sarsa(linear_env, max_episodes, eta, gamma, epsilon, seed=seed)
     policy, value = linear_env.decode_policy(parameters)
     linear_env.render(policy, value)
-
     print('')
 
+
+    print('## Linear Sarsa (p20''s RL testing): Frozen Lake')
+    env = FrozenLake(lake, slip=0.1, max_steps=16, seed=seed)
+    linear_env = LinearWrapper(env)
+
+    theta = linear_sarsa_p20(env=linear_env, max_episodes=max_episodes, lr=eta, gamma=gamma, epsilon=epsilon, seed=seed, training=True)
+    policy, value = linear_env.decode_policy(theta)
+    linear_env.render(policy, value)
+    print('')
 
 if __name__ == "__main__":
     main()
