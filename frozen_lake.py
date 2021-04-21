@@ -6,6 +6,8 @@ path.append("tabular.py")
 from tabular import FrozenLake, LinearWrapper
 from model_free import linear_sarsa, linear_sarsa_p20
 
+import numpy as np
+
 def main():
     seed = 0
 
@@ -46,7 +48,9 @@ def main():
     env = FrozenLake(lake, slip=0.1, max_steps=16, seed=seed)
     linear_env = LinearWrapper(env)
 
-    theta = linear_sarsa_p20(env=linear_env, max_episodes=max_episodes, lr=eta, gamma=gamma, epsilon=epsilon, seed=seed, training=True)
+    theta = np.zeros(linear_env.n_features)
+    linear_sarsa_p20(env=linear_env, theta=theta,
+                     max_episodes=max_episodes, lr=eta, gamma=gamma, epsilon=epsilon, seed=seed, training=True)
     policy, value = linear_env.decode_policy(theta)
     linear_env.render(policy, value)
     print('')

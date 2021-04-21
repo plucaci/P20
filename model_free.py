@@ -55,13 +55,12 @@ def get_action(env, Q, epsilon, random):
     return a
 
 
-def linear_sarsa_p20(env, max_episodes, lr, gamma, epsilon, seed, training=True):
+def linear_sarsa_p20(env, max_episodes, theta, lr, gamma, epsilon, seed, training=True):
 
     random_state = np.random.RandomState(seed)
 
     lr = np.linspace(lr, 0, max_episodes)
     epsilon = np.linspace(epsilon, 0, max_episodes)
-    theta = np.zeros(env.n_features)
 
     for episode in range(max_episodes):
         features = env.reset()
