@@ -182,9 +182,8 @@ def preloaded_training_p20(game="BreakoutNoFrameskip-v4", seed=0, solved=40, num
 
     try:
         checkpoint = pd.read_pickle('/content/drive/MyDrive/checkpoint.pkl')
-        episode = checkpoint['episode']
+        episode = checkpoint['episode'] +1
         theta = checkpoint['theta']
-        print(episode, theta)
     except:
         theta = np.zeros(512 + loaded_p20.env.action_space.n)
         episode = 0
