@@ -1,6 +1,8 @@
 import tensorflow as tf
 
 import numpy as np
+import pickle
+import pandas as pd
 
 from collections import deque
 
@@ -75,7 +77,7 @@ class P20:
         conv_features = np.tile(conv_features, (self.env.action_space.n, 1))
         return np.concatenate((conv_features, self.actions_identity), axis=1)
 
-    def linear_sarsa_p20(self, max_episodes, solved_at, theta, lr, gamma, epsilon, seed, training=True, render=True):
+    def linear_sarsa_p20(self, start_episode, max_episodes, solved_at, theta, lr, gamma, epsilon, seed, training=True, render=True):
         highest_score = 0
 
         random_state = np.random.RandomState(seed)
@@ -85,7 +87,7 @@ class P20:
 
         frame_count = 0
         rolling_reward_window100 = deque(maxlen=100)
-        for episode in range(max_episodes):
+        for episode in range(start_episode, max_episodes):
             state = self.env.reset()
             features = self.get_features(state)
 
@@ -128,6 +130,15 @@ class P20:
                 print(f"{episode + 1}/{max_episodes} done \tEpisode Score: {ep_score}"
                       f"\tFrame count: {frame_count}")
 
+            if episode % 500 == 0:
+                checkpoint = dict()
+                checkpoint['episode'] = episode
+                checkpoint['theta'] = theta
+
+                with open("/content/drive/MyDrive/checkpoint.pkl", "wb") as cpoint:
+                    pickle.dump(checkpoint, cpoint)
+                cpoint.close()
+
             if rolling_reward >= solved_at and training:
                 print(f"Solved in {episode + 1} episodes")
                 break
@@ -138,6 +149,7 @@ def training_p20(game="BreakoutNoFrameskip-v4", seed=0, solved=40, theta_filenam
 
     theta = np.zeros(512 + p20_train.env.action_space.n)
     p20_train.linear_sarsa_p20(
+        start_episode= 0,
         max_episodes = 100000,
         solved_at    = solved,
         theta        = theta,
@@ -168,8 +180,16 @@ def preloaded_training_p20(game="BreakoutNoFrameskip-v4", seed=0, solved=40, num
     loaded_p20.p20 = model2
     print(loaded_p20.p20.summary())
 
-    theta = np.zeros(512 + loaded_p20.env.action_space.n)
+    try:
+        checkpoint = pd.read_pickle('checkpoint.pkl')
+        episode = checkpoint['episode']
+        theta = checkpoint['theta']
+        print(episode, theta)
+    except:
+        theta = np.zeros(512 + loaded_p20.env.action_space.n)
+        episode = 0
     loaded_p20.linear_sarsa_p20(
+        start_episode= episode,
         max_episodes = 500000,
         solved_at    = solved,
         theta        = theta,
@@ -207,6 +227,7 @@ def testing_p20(game="BreakoutNoFrameskip-v4", seed=0, num_actions=4,
     print(p20_test.p20.summary())
 
     p20_test.linear_sarsa_p20(
+        start_episode= 0,
         max_episodes = 2000,
         solved_at    = -1,
         theta        = theta,
@@ -229,6 +250,7 @@ with tf.device('/device:GPU:0'):
         theta_filename = '/content/drive/MyDrive/theta_loaded_breakout.npy'
     )
 
+    """
     testing_p20(
         game = "BreakoutNoFrameskip-v4",
         seed = 0,
@@ -236,3 +258,4 @@ with tf.device('/device:GPU:0'):
         model_weights = '/content/drive/MyDrive/model_breakout.h5',
         theta_filename = '/content/drive/MyDrive/theta_loaded_breakout.npy'
     )
+    """
