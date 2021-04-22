@@ -16,7 +16,6 @@ K_FRAMES_STACKED = 4
 FRAME_SIZE = 84
 
 def CNN_P20():
-
     input_states = tf.keras.Input(shape=(FRAME_SIZE, FRAME_SIZE, K_FRAMES_STACKED))
 
     layer1 = tf.keras.layers.Conv2D(32, 8, strides=4, activation="relu", data_format="channels_last")(input_states)
@@ -121,12 +120,12 @@ class P20:
             highest_score = max(rolling_reward, highest_score)
 
             if len(rolling_reward_window100) == 100:
-                print(f"{episode+1}/{max_episodes} done \tEpisode Score: {ep_score}"
+                print(f"{episode + 1}/{max_episodes} done \tEpisode Score: {ep_score}"
                       f"\tAvg Score 100 Episodes: {rolling_reward}"
                       f"\tHighest Avg Score: {highest_score:f}"
                       f"\tFrame count: {frame_count}")
             else:
-                print(f"{episode+1}/{max_episodes} done \tEpisode Score: {ep_score}"
+                print(f"{episode + 1}/{max_episodes} done \tEpisode Score: {ep_score}"
                       f"\tFrame count: {frame_count}")
 
             if rolling_reward >= solved_at and training:
@@ -135,7 +134,6 @@ class P20:
 
 
 def training_p20(game="BreakoutNoFrameskip-v4", seed=0, solved=40, theta_filename='theta_breakout.npy'):
-
     p20_train = P20(game_name=game)
 
     theta = np.zeros(512 + p20_train.env.action_space.n)
@@ -148,7 +146,7 @@ def training_p20(game="BreakoutNoFrameskip-v4", seed=0, solved=40, theta_filenam
         epsilon      = 0.5,
         seed         = seed,
         training     = True,
-        render       = True
+        render       = False
     )
 
     with open(theta_filename, 'wb') as f:
@@ -157,7 +155,6 @@ def training_p20(game="BreakoutNoFrameskip-v4", seed=0, solved=40, theta_filenam
 
 def preloaded_training_p20(game="BreakoutNoFrameskip-v4", seed=0, solved=40, num_actions=4,
                            model_weights='./model_breakout.h5', theta_filename='theta_loaded_breakout.npy'):
-
     ## Loading the the weights
     model = q_model(num_actions)
     model.load_weights(model_weights)
@@ -181,7 +178,7 @@ def preloaded_training_p20(game="BreakoutNoFrameskip-v4", seed=0, solved=40, num
         epsilon      = 0.5,
         seed         = seed,
         training     = True,
-        render       = True
+        render       = False
     )
 
     with open(theta_filename, 'wb') as f:
@@ -191,7 +188,6 @@ def preloaded_training_p20(game="BreakoutNoFrameskip-v4", seed=0, solved=40, num
 
 def testing_p20(game="BreakoutNoFrameskip-v4", seed=0, num_actions=4,
                 model_weights='./model_breakout.h5', theta_filename='theta_loaded_breakout.npy'):
-
     ## Loading theta
     with open(theta_filename, 'rb') as f:
         theta = np.load(f)
@@ -223,22 +219,20 @@ def testing_p20(game="BreakoutNoFrameskip-v4", seed=0, num_actions=4,
     )
 
 
-# with tf.device('/device:GPU:0'):
-preloaded_training_p20(
-    game = "BreakoutNoFrameskip-v4",
-    seed = 0,
-    solved = 40,
-    num_actions = 4,
-    model_weights = './model_breakout.h5',
-    theta_filename ='../theta_loaded_breakout.npy'
-)
+with tf.device('/device:GPU:0'):
+    preloaded_training_p20(
+        game = "BreakoutNoFrameskip-v4",
+        seed = 0,
+        solved = 40,
+        num_actions = 4,
+        model_weights = '/content/drive/MyDrive/model_breakout.h5',
+        theta_filename = '/content/drive/MyDrive/theta_loaded_breakout.npy'
+    )
 
-"""
-testing_p20(
-    game = "BreakoutNoFrameskip-v4",
-    seed = 0,
-    num_actions = 4,
-    model_weights = './model_breakout.h5',
-    theta_filename = 'theta_loaded_breakout.npy'
-)
-"""
+    testing_p20(
+        game = "BreakoutNoFrameskip-v4",
+        seed = 0,
+        num_actions = 4,
+        model_weights = '/content/drive/MyDrive/model_breakout.h5',
+        theta_filename = '/content/drive/MyDrive/theta_loaded_breakout.npy'
+    )
