@@ -80,7 +80,7 @@ class P20:
 
         random_state = np.random.RandomState(seed)
 
-        lr = np.linspace(lr, 0, max_episodes)
+        # lr = np.linspace(lr, 0, max_episodes)
         epsilon = np.linspace(epsilon, 0, max_episodes)
 
         frame_count = 0
@@ -103,7 +103,7 @@ class P20:
 
                 if training:
                     temp_diff = reward + (gamma * next_Q[next_action]) - Q[action]
-                    theta += lr[episode] * temp_diff * features[action]
+                    theta += lr * temp_diff * features[action]
 
                 state = next_state
                 features = self.get_features(state)
