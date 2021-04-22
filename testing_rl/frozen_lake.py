@@ -50,7 +50,7 @@ def main():
 
     theta = np.zeros(linear_env.n_features)
     linear_sarsa_p20(env=linear_env, theta=theta,
-                     max_episodes=max_episodes, lr=eta, gamma=gamma, epsilon=epsilon, seed=seed, training=True)
+                     max_episodes=max_episodes, lr=0.0025, gamma=gamma, epsilon=epsilon, seed=seed, training=True)
     policy, value = linear_env.decode_policy(theta)
     linear_env.render(policy, value)
     print('')

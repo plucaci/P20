@@ -59,7 +59,7 @@ def linear_sarsa_p20(env, max_episodes, theta, lr, gamma, epsilon, seed, trainin
 
     random_state = np.random.RandomState(seed)
 
-    lr = np.linspace(lr, 0, max_episodes)
+    # lr = np.linspace(lr, 0, max_episodes)
     epsilon = np.linspace(epsilon, 0, max_episodes)
 
     for episode in range(max_episodes):
@@ -78,7 +78,7 @@ def linear_sarsa_p20(env, max_episodes, theta, lr, gamma, epsilon, seed, trainin
 
             if training:
                 temp_diff = reward + (gamma * next_Q[next_action]) - Q[action]
-                theta += lr[episode] * temp_diff * features[action]
+                theta += lr * temp_diff * features[action]
 
             features = next_features
             Q = features.dot(theta).reshape(-1, 1) # Q for current state,
