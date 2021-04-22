@@ -218,7 +218,7 @@ def testing_p20(game="BreakoutNoFrameskip-v4", seed=0, num_actions=4,
         gamma        = 0.99,
         epsilon      = 0.5,
         seed         = seed,
-        training     = True,
+        training     = False,
         render       = True
     )
 
