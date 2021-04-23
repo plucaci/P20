@@ -164,15 +164,23 @@ class P20:
 
 
 def training_p20(game="BreakoutNoFrameskip-v4", seed=0, solved=40, theta_filename='theta_breakout.npy'):
+
     p20_train = P20(game_name=game)
 
-    theta = np.zeros(512 + p20_train.env.action_space.n)
+    try:
+        checkpoint = pd.read_pickle('checkpoint.pkl')
+        episode = checkpoint['episode'] +1
+        theta = checkpoint['theta']
+    except:
+        theta = np.zeros(512 * p20_train.env.action_space.n)
+        episode = 0
+
     p20_train.linear_sarsa_p20(
-        start_episode= 0,
+        start_episode= episode,
         max_episodes = 100000,
         solved_at    = solved,
         theta        = theta,
-        lr           = 0.5,
+        lr           = 0.00025,
         gamma        = 0.99,
         epsilon      = 0.5,
         seed         = seed,
