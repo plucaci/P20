@@ -68,7 +68,7 @@ class P20:
         else:
             Q_max = max(Q)
             best = [a for a in range(self.env.action_space.n) if np.allclose(Q_max, Q[a])]
-            if best != []:
+            if best:
                 a = random.choice(best)
             else:
                 a = np.argmax(Q)
@@ -140,9 +140,9 @@ class P20:
 
             if len(rolling_reward_window100) == 100:
                 print(f"{episode + 1}/{max_episodes} done \tEpisode Score: {ep_score}"
-                      f"\tAvg Score 100 Episodes: {rolling_reward}"
-                      f"\tHighest Avg Score: {highest_score:f}"
-                      f"\tFrame count: {frame_count}")
+                      f"\t\tAvg Score 100 Episodes: {rolling_reward:2f}"
+                      f"\tHighest Avg Score: {highest_score:2f}"
+                      f"\t\tFrame count: {frame_count}")
             else:
                 print(f"{episode + 1}/{max_episodes} done \tEpisode Score: {ep_score}"
                       f"\tFrame count: {frame_count}")
