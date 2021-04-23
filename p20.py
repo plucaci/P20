@@ -57,7 +57,8 @@ class P20:
 
         # Warp the frames, grey scale, stack four frames and scale to smaller ratio
         self.env = wrap_deepmind(make_atari(game_name), frame_stack=True, scale=True)
-        self.actions_identity = np.eye(self.env.action_space.n, self.env.action_space.n)
+        # self.actions_identity = np.eye(self.env.action_space.n, self.env.action_space.n)
+        self.null_features = np.zeros(shape=(512, ))
 
         self.p20 = CNN_P20()
 
@@ -67,15 +68,31 @@ class P20:
         else:
             Q_max = max(Q)
             best = [a for a in range(self.env.action_space.n) if np.allclose(Q_max, Q[a])]
-            a = random.choice(best)
+            if best != []:
+                a = random.choice(best)
+            else:
+                a = np.argmax(Q)
+
         return a
 
     def get_features(self, state):
         conv_features = self.p20(np.expand_dims(np.asarray(state).astype(np.float64), axis=0))
         conv_features = np.squeeze(conv_features)
 
-        conv_features = np.tile(conv_features, (self.env.action_space.n, 1))
-        return np.concatenate((conv_features, self.actions_identity), axis=1)
+        ### Null-Feature Encoding ###
+        features = np.zeros(shape=(self.env.action_space.n, 512 * self.env.action_space.n))
+        features[0] = np.concatenate((conv_features, self.null_features, self.null_features, self.null_features))
+        features[1] = np.concatenate((self.null_features, conv_features, self.null_features, self.null_features))
+        features[2] = np.concatenate((self.null_features, self.null_features, conv_features, self.null_features))
+        features[3] = np.concatenate((self.null_features, self.null_features, self.null_features, conv_features))
+        return features
+        #############################
+
+
+        ### One-Hot Encoding ###
+        # conv_features = np.tile(conv_features, (self.env.action_space.n, 1))
+        # return np.concatenate((conv_features, self.actions_identity), axis=1)
+        ########################
 
     def linear_sarsa_p20(self, start_episode, max_episodes, solved_at, theta, lr, gamma, epsilon, seed, training=True, render=True):
         highest_score = 0
@@ -135,7 +152,7 @@ class P20:
                 checkpoint['episode'] = episode
                 checkpoint['theta'] = theta
 
-                with open("/content/drive/MyDrive/checkpoint.pkl", "wb") as cpoint:
+                with open("checkpoint.pkl", "wb") as cpoint:
                     pickle.dump(checkpoint, cpoint)
                 cpoint.close()
 
@@ -181,18 +198,18 @@ def preloaded_training_p20(game="BreakoutNoFrameskip-v4", seed=0, solved=40, num
     print(loaded_p20.p20.summary())
 
     try:
-        checkpoint = pd.read_pickle('/content/drive/MyDrive/checkpoint.pkl')
+        checkpoint = pd.read_pickle('checkpoint.pkl')
         episode = checkpoint['episode'] +1
         theta = checkpoint['theta']
     except:
-        theta = np.zeros(512 + loaded_p20.env.action_space.n)
+        theta = np.zeros(512 * loaded_p20.env.action_space.n)
         episode = 0
     loaded_p20.linear_sarsa_p20(
         start_episode= episode,
         max_episodes = 500000,
         solved_at    = solved,
         theta        = theta,
-        lr           = 0.5,
+        lr           = 0.00025,
         gamma        = 0.99,
         epsilon      = 0.5,
         seed         = seed,
@@ -238,15 +255,15 @@ def testing_p20(game="BreakoutNoFrameskip-v4", seed=0, num_actions=4,
         render       = True
     )
 
-
+np.seterr(all='raise')
 with tf.device('/device:GPU:0'):
     preloaded_training_p20(
         game = "BreakoutNoFrameskip-v4",
         seed = 0,
         solved = 40,
         num_actions = 4,
-        model_weights = '/content/drive/MyDrive/model_breakout.h5',
-        theta_filename = '/content/drive/MyDrive/theta_loaded_breakout.npy'
+        model_weights = './P20/model_breakout.h5',
+        theta_filename = './P20/theta_loaded_breakout.npy'
     )
 
     """
