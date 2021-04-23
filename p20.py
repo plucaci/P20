@@ -105,6 +105,7 @@ class P20:
         frame_count = 0
         rolling_reward_window100 = deque(maxlen=100)
         for episode in range(start_episode, max_episodes):
+            if render: self.env.render()
             state = self.env.reset()
             features = self.get_features(state)
 
@@ -115,14 +116,14 @@ class P20:
             done = False
             while not done:
                 next_state, reward, done, _ = self.env.step(action)
+                if render: self.env.render()
                 next_features = self.get_features(next_state)
 
                 next_Q = next_features.dot(theta).reshape(-1, 1)
                 next_action = self.get_action(next_Q, epsilon[episode], random_state)
 
-                if training:
-                    temp_diff = reward + (gamma * next_Q[next_action]) - Q[action]
-                    theta += lr * temp_diff * features[action]
+                temp_diff = reward + (gamma * next_Q[next_action]) - Q[action]
+                theta += lr * temp_diff * features[action]
 
                 state = next_state
                 features = self.get_features(state)
