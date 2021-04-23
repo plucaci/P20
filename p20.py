@@ -94,7 +94,7 @@ class P20:
         # return np.concatenate((conv_features, self.actions_identity), axis=1)
         ########################
 
-    def linear_sarsa_p20(self, start_episode, max_episodes, solved_at, theta, lr, gamma, epsilon, seed, training=True, render=True):
+    def linear_sarsa_p20(self, start_episode, max_episodes, solved_at, theta, lr, gamma, epsilon, seed, render=True):
         highest_score = 0
 
         random_state = np.random.RandomState(seed)
@@ -157,7 +157,7 @@ class P20:
                     pickle.dump(checkpoint, cpoint)
                 cpoint.close()
 
-            if rolling_reward >= solved_at and training:
+            if rolling_reward >= solved_at:
                 print(f"Solved in {episode + 1} episodes")
                 break
 
@@ -175,7 +175,6 @@ def training_p20(game="BreakoutNoFrameskip-v4", seed=0, solved=40, theta_filenam
         gamma        = 0.99,
         epsilon      = 0.5,
         seed         = seed,
-        training     = True,
         render       = False
     )
 
@@ -214,7 +213,6 @@ def preloaded_training_p20(game="BreakoutNoFrameskip-v4", seed=0, solved=40, num
         gamma        = 0.99,
         epsilon      = 0.5,
         seed         = seed,
-        training     = True,
         render       = False
     )
 
@@ -252,7 +250,6 @@ def testing_p20(game="BreakoutNoFrameskip-v4", seed=0, num_actions=4,
         gamma        = 0.99,
         epsilon      = 0.5,
         seed         = seed,
-        training     = False,
         render       = True
     )
 
