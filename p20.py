@@ -17,8 +17,9 @@ K_FRAMES_STACKED = 4
 # The size of the frame, after downsampling and cropping
 FRAME_SIZE = 84
 
-def CNN_P20():
-    input_states = tf.keras.Input(shape=(FRAME_SIZE, FRAME_SIZE, K_FRAMES_STACKED))
+
+def p20_model():
+    input_states = tf.keras.Input(shape=(FRAME_SIZE, FRAME_SIZE, K_FRAMES_STACKED,))
 
     layer1 = tf.keras.layers.Conv2D(32, 8, strides=4, activation="relu", data_format="channels_last")(input_states)
     layer2 = tf.keras.layers.Conv2D(64, 4, strides=2, activation="relu", data_format="channels_last")(layer1)
@@ -37,7 +38,7 @@ def CNN_P20():
 
 def q_model(num_actions=4):
     # Network defined by the Deepmind paper
-    inputs = tf.keras.layers.Input(shape=(84, 84, 4,))
+    inputs = tf.keras.layers.Input(shape=(FRAME_SIZE, FRAME_SIZE, K_FRAMES_STACKED,))
 
     # Convolutions on the frames on the screen
     layer1 = tf.keras.layers.Conv2D(32, 8, strides=4, activation="relu", data_format="channels_last")(inputs)
@@ -60,7 +61,7 @@ class P20:
         # self.actions_identity = np.eye(self.env.action_space.n, self.env.action_space.n)
         self.null_features = np.zeros(shape=(512, ))
 
-        self.p20 = CNN_P20()
+        self.p20 = p20_model()
 
     def get_action(self, Q, epsilon, random):
         if random.rand() < epsilon:
@@ -182,6 +183,7 @@ def training_p20(game="BreakoutNoFrameskip-v4", seed=0, solved=40, theta_filenam
         np.save(f, theta)
     f.close()
 
+
 def preloaded_training_p20(game="BreakoutNoFrameskip-v4", seed=0, solved=40, num_actions=4,
                            model_weights='./model_breakout.h5', theta_filename='theta_loaded_breakout.npy'):
     ## Loading the the weights
@@ -253,7 +255,7 @@ def testing_p20(game="BreakoutNoFrameskip-v4", seed=0, num_actions=4,
         render       = True
     )
 
-np.seterr(all='raise')
+
 with tf.device('/device:GPU:0'):
     preloaded_training_p20(
         game = "BreakoutNoFrameskip-v4",
