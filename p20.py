@@ -192,19 +192,21 @@ def training_p20(game="BreakoutNoFrameskip-v4", seed=0, solved=40, theta_filenam
     f.close()
 
 
-def preloaded_training_p20(game="BreakoutNoFrameskip-v4", seed=0, solved=40, num_actions=4,
+def preloaded_training_p20(game="BreakoutNoFrameskip-v4", seed=0, solved=40,
                            model_weights='./model_breakout.h5', theta_filename='theta_loaded_breakout.npy'):
+
+    loaded_p20 = P20(game_name=game)
+
     ## Loading the the weights
-    model = q_model(num_actions)
-    model.load_weights(model_weights)
+    full_model = q_model(loaded_p20.env.action_space.n)
+    full_model.load_weights(model_weights)
 
     ## Stripping away the last layer
-    model2 = tf.keras.models.Model(inputs=model.input, outputs=model.layers[-2].output)
-    model2.compile(loss=tf.keras.losses.MeanSquaredError(), optimizer=tf.keras.optimizers.SGD())
+    partial_model = tf.keras.models.Model(inputs=full_model.input, outputs=full_model.layers[-2].output)
+    partial_model.compile(loss=tf.keras.losses.MeanSquaredError(), optimizer=tf.keras.optimizers.SGD())
 
     ## Using the loaded model without the last layer
-    loaded_p20 = P20(game_name=game)
-    loaded_p20.p20 = model2
+    loaded_p20.p20 = partial_model
     print(loaded_p20.p20.summary())
 
     try:
@@ -214,6 +216,7 @@ def preloaded_training_p20(game="BreakoutNoFrameskip-v4", seed=0, solved=40, num
     except:
         theta = np.zeros(512 * loaded_p20.env.action_space.n)
         episode = 0
+
     loaded_p20.linear_sarsa_p20(
         start_episode= episode,
         max_episodes = 500000,
@@ -231,46 +234,35 @@ def preloaded_training_p20(game="BreakoutNoFrameskip-v4", seed=0, solved=40, num
     f.close()
 
 
-def testing_p20(game="BreakoutNoFrameskip-v4", seed=0, num_actions=4,
+def testing_p20(game="BreakoutNoFrameskip-v4", seed=0,
                 model_weights='./model_breakout.h5', theta_filename='theta_loaded_breakout.npy'):
+
+    p20_test = P20(game_name=game)
+
+    ## Loading the the weights
+    full_model = q_model(p20_test.env.action_space.n)
+    full_model.load_weights(model_weights)
+
+    ## Stripping away the last layer
+    partial_model = tf.keras.models.Model(inputs=full_model.input, outputs=full_model.layers[-2].output)
+    partial_model.compile(loss=tf.keras.losses.MeanSquaredError(), optimizer=tf.keras.optimizers.SGD())
+
+    ## Using the loaded model without the last layer
+    p20_test.p20 = partial_model
+    print(p20_test.p20.summary())
+
     ## Loading theta
     with open(theta_filename, 'rb') as f:
         theta = np.load(f)
     f.close()
 
-    ## Loading the the weights
-    model = q_model(num_actions)
-    model.load_weights(model_weights)
-
-    ## Stripping away the last layer
-    model2 = tf.keras.models.Model(inputs=model.input, outputs=model.layers[-2].output)
-    model2.compile(loss=tf.keras.losses.MeanSquaredError(), optimizer=tf.keras.optimizers.SGD())
-
-    ## Using the loaded model without the last layer
-    p20_test = P20(game_name=game)
-    p20_test.p20 = model2
-    print(p20_test.p20.summary())
-
-    p20_test.linear_sarsa_p20(
-        start_episode= 0,
-        max_episodes = 2000,
-        solved_at    = -1,
-        theta        = theta,
-        lr           = 0.5,
-        gamma        = 0.99,
-        epsilon      = 0.5,
-        seed         = seed,
-        render       = True
-    )
-
 
 with tf.device('/device:GPU:0'):
-    preloaded_training_p20(
+    training_p20(
         game = "BreakoutNoFrameskip-v4",
         seed = 0,
         solved = 40,
-        num_actions = 4,
-        model_weights = './P20/model_breakout.h5',
+        model_weights = './P20/model_breakout.npy',
         theta_filename = './P20/theta_loaded_breakout.npy'
     )
 
