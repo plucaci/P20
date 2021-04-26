@@ -171,6 +171,30 @@ class P20:
 
         return self.theta
 
+    def play(self, theta, episodes, render):
+        for episode in range(1, episodes + 1):
+            ep_score = 0
+
+            state = self.env.reset()
+            if render: self.env.render()
+
+            features = self.get_features(state)
+            Q = features.dot(theta)
+            action = np.argmax(Q)
+
+            done = False
+            while not done:
+                next_state, reward, done, _ = self.env.step(action)
+                if render: self.env.render()
+                ep_score += reward
+
+                next_features = self.get_features(next_state)
+                next_Q = next_features.dot(theta)
+                next_action = np.argmax(next_Q)
+
+                action = next_action
+            print(f"{episode}/{episodes} done \tEpisode Score: {ep_score}")
+
     def collect(self, episode, frame_count, highest_score, rolling_reward, rolling_reward_window100):
         self.metrics[str(episode)] = dict()
         self.metrics[str(episode)]['episode'] = episode
@@ -290,11 +314,53 @@ def training_p20(game_name="BreakoutNoFrameskip-v4", seed=0, solved_at=40,
     plt.plot(df['frame_count'], df['rolling_reward'])
     plt.show()
 
+def playing_p20(game_name="BreakoutNoFrameskip-v4", seed=0, episodes=100, render=True,
+                model_weights=None, remove_layers=-2, force_model=False,
+                theta_filename='theta_breakout_loaded.npy'):
+
+    if remove_layers not in [-1, -2]:
+        print('Can only remove the remaining Dense layer of size 512. HINT: Use remove_layers=-2 to remove this, or -1 to keep')
+        return
+
+    # Warp and stack the frames, preprocessing: stack four frames and scale to smaller ratio
+    env = wrap_deepmind(make_atari(game_name), frame_stack=True, scale=True)
+    p20_model = q_model(num_actions=env.action_space.n)
+
+    try:
+        if model_weights is not None:
+            p20_model.load_weights(model_weights)
+            pretrained = True
+    except:
+        print(f'\nCould not find file for model weights: {model_weights}')
+        if force_model:
+            pretrained = False
+            print('Using random weights instead')
+        else:
+            return
+
+    # Stripping away the last remove_layers layers, and the layer for the actions
+    p20_model = tf.keras.models.Model(inputs=p20_model.input, outputs=p20_model.layers[remove_layers - 1].output)
+
+    # Setting the number of features according to the last layer
+    num_features = p20_model.layers[-1].output_shape[1]
+    theta = np.load(theta_filename)
+    null_features = np.zeros(shape=(num_features,))
+
+    play_p20 = P20(env, game_name, seed, p20_model, remove_layers, False, theta, num_features, null_features, '', None, '')
+    print(play_p20.p20.summary())
+    print('')
+
+    play_p20.play(theta, episodes, render)
+
 with tf.device('/device:GPU:0'):
     training_p20(game_name="BreakoutNoFrameskip-v4", seed=0, solved_at=40,
                     max_episodes=1000, lr=0.00025, gamma=0.99, max_epsilon=1, min_epsilon=0.1, render=False,
                     model_weights=None, remove_layers=-2, force_model=False,
                     metrics_filename='./P20/metrics_breakout.pkl', checkpoint_filename='./P20/checkpoint_breakout.pkl', theta_filename='./P20/theta_breakout.npy')
+
+playing_p20(game_name="BreakoutNoFrameskip-v4", seed=0, episodes=100, render=True,
+            model_weights=None, remove_layers=-2, force_model=False,
+            theta_filename='./new_theta_breakout_loaded.npy')
 
 """
 with tf.device('/device:GPU:0'):
