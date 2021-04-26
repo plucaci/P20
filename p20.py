@@ -10,10 +10,9 @@ import matplotlib.pyplot as plt
 from collections import deque
 
 from baselines.common.atari_wrappers import make_atari, wrap_deepmind
-from sys import path
-path.append('LinearAtari.py', 'RunningUtils.py')
-from RunningUtils import Checkpoint, Metrics
+
 from LinearAtari import LinearAtariWrapper
+from RunningUtils import Checkpoint, Metrics
 
 """
   Input shape K_FRAMES_STACKED x FRAME_SIZE x FRAME_SIZE
@@ -65,7 +64,7 @@ class P20:
 
     def linear_sarsa_p20(self, start_episode, max_episodes, solved_at, lr, gamma, epsilon, min_epsilon, render, seed):
         if self.checkpoint.has_checkpoint:
-            start_episode, frame_count, highest_score, rolling_reward_window100 = self.checkpoint.get_counters(start_episode)
+            start_episode, frame_count, highest_score, rolling_reward_window100 = self.checkpoint.get_counters()
             start_episode += 1
         else:
             frame_count, highest_score, rolling_reward_window100 = 0, 0, deque(maxlen=100)
