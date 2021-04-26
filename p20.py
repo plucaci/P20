@@ -10,8 +10,8 @@ import matplotlib.pyplot as plt
 from collections import deque
 
 from baselines.common.atari_wrappers import make_atari, wrap_deepmind
-import sys
-sys.append('LinearAtari.py')
+from sys import path
+path.append('LinearAtari.py')
 from LinearAtari import LinearAtariWrapper
 
 """
@@ -45,7 +45,8 @@ def q_model(num_actions=4):
 class P20:
     def __init__(self, env=None, game_name="BreakoutNoFrameskip-v4", seed=0,
                  p20=None, remove_layers=-1, pretrained=False, theta=None, num_features=None,
-                 metrics_filename='metrics_breakout_loaded.pkl', checkpoint=None, checkpoint_filename='checkpoint_breakout_loaded.pkl'):
+                 metrics=None, metrics_filename='metrics_breakout_loaded.pkl',
+                 checkpoint=None, checkpoint_filename='checkpoint_breakout_loaded.pkl'):
 
         self.game_name = game_name
         self.env = LinearAtariWrapper(env=env, p20_model=p20, num_features=num_features)
@@ -60,18 +61,8 @@ class P20:
 
         self.checkpoint = checkpoint
         self.checkpoint_filename = checkpoint_filename
-
-        self.metrics = dict()
+        self.metrics = metrics
         self.metrics_filename = metrics_filename
-        try:
-            self.metrics = pd.read_pickle(self.metrics_filename)
-            print(f'\nFound and using previously collected metrics during training for game {self.game_name}:')
-            print(pd.DataFrame.from_dict(self.metrics))
-            print('')
-        except:
-            if self.metrics_filename is None:
-                self.metrics_filename = game_name+'_metrics.pkl'
-                print('Saving metrics to file', self.metrics_filename, 'instead')
 
 
     def get_action(self, Q, epsilon, random):
@@ -113,7 +104,7 @@ class P20:
             ep_score = 0
             done = False
             while not done:
-                next_features, reward, done, _ = self.env.step(action)
+                next_features, reward, done = self.env.step(action)
                 frame_count += 1
                 if render: self.env.render()
 
@@ -250,7 +241,17 @@ def training_p20(game_name="BreakoutNoFrameskip-v4", seed=0, solved_at=40,
         num_features = p20_model.layers[-1].output_shape[1]
         theta = np.zeros(num_features * env.action_space.n)
 
-    train_p20 = P20(env, game_name, seed, p20_model, remove_layers, pretrained, theta, num_features, metrics_filename, checkpoint, checkpoint_filename)
+    try:
+        metrics = pd.read_pickle(metrics_filename)
+        print(f'\nFound and using previously collected metrics during training for game {game_name}:')
+        print(pd.DataFrame.from_dict(metrics))
+        print('')
+    except:
+        if metrics_filename is None:
+            metrics_filename = game_name + '_metrics.pkl'
+            print('Saving metrics to file', metrics_filename, 'instead')
+
+    train_p20 = P20(env, game_name, seed, p20_model, remove_layers, pretrained, theta, num_features, metrics, metrics_filename, checkpoint, checkpoint_filename)
 
     theta = train_p20.linear_sarsa_p20(
         start_episode = 1,
