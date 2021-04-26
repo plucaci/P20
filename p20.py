@@ -10,6 +10,9 @@ import matplotlib.pyplot as plt
 from collections import deque
 
 from baselines.common.atari_wrappers import make_atari, wrap_deepmind
+import sys
+sys.append('LinearAtari.py')
+from LinearAtari import LinearAtariWrapper
 
 """
   Input shape K_FRAMES_STACKED x FRAME_SIZE x FRAME_SIZE
@@ -41,22 +44,19 @@ def q_model(num_actions=4):
 
 class P20:
     def __init__(self, env=None, game_name="BreakoutNoFrameskip-v4", seed=0,
-                 p20=None, remove_layers=-1, pretrained=False, theta=None, num_features=None, null_features=None,
+                 p20=None, remove_layers=-1, pretrained=False, theta=None, num_features=None,
                  metrics_filename='metrics_breakout_loaded.pkl', checkpoint=None, checkpoint_filename='checkpoint_breakout_loaded.pkl'):
 
         self.game_name = game_name
-        self.env = env
+        self.env = LinearAtariWrapper(env=env, p20_model=p20, num_features=num_features)
 
         self.seed = seed
 
-        self.p20 = p20
         self.pretrained = pretrained
         self.remove_layers = remove_layers
 
         self.theta = theta
         self.num_features = num_features
-        self.null_features = null_features
-        # self.actions_identity = np.eye(self.env.action_space.n, self.env.action_space.n) # Identity matrix for one-hot encoded actions
 
         self.checkpoint = checkpoint
         self.checkpoint_filename = checkpoint_filename
@@ -76,10 +76,10 @@ class P20:
 
     def get_action(self, Q, epsilon, random):
         if random.rand() < epsilon:
-            a = random.choice(self.env.action_space.n)
+            a = random.choice(self.env.num_actions)
         else:
             Q_max = max(Q)
-            best = [a for a in range(self.env.action_space.n) if np.allclose(Q_max, Q[a])]
+            best = [a for a in range(self.env.num_actions) if np.allclose(Q_max, Q[a])]
             if best:
                 a = random.choice(best)
             else:
@@ -87,27 +87,9 @@ class P20:
 
         return a
 
-    def get_features(self, state):
-        conv_features = self.p20(np.expand_dims(np.asarray(state).astype(np.float64), axis=0))
-        conv_features = np.squeeze(conv_features)
-
-        ### Null-Feature Encoding ###
-        features = np.zeros(shape=(self.env.action_space.n, self.num_features * self.env.action_space.n))
-        features[0] = np.concatenate((conv_features, self.null_features, self.null_features, self.null_features))
-        features[1] = np.concatenate((self.null_features, conv_features, self.null_features, self.null_features))
-        features[2] = np.concatenate((self.null_features, self.null_features, conv_features, self.null_features))
-        features[3] = np.concatenate((self.null_features, self.null_features, self.null_features, conv_features))
-        return features
-        #############################
-
-        ### One-Hot Encoding ###
-        # conv_features = np.tile(conv_features, (self.env.action_space.n, 1))
-        # return np.concatenate((conv_features, self.actions_identity), axis=1)
-        ########################
-
     def linear_sarsa_p20(self, start_episode, max_episodes, solved_at, lr, gamma, epsilon, min_epsilon, render):
         if self.checkpoint is None:
-            frame_count = 1
+            frame_count = 0
             highest_score = 0
             rolling_reward_window100 = deque(maxlen=100)
         else:
@@ -121,30 +103,27 @@ class P20:
         epsilon = np.linspace(epsilon, min_epsilon, max_episodes)
 
         for episode in range(start_episode, max_episodes + 1):
-            state = self.env.reset()
+            features = self.env.reset()
             frame_count += 1
             if render: self.env.render()
 
-            features = self.get_features(state)
             Q = features.dot(self.theta)
             action = self.get_action(Q, epsilon[episode - 1], random_state)
 
             ep_score = 0
             done = False
             while not done:
-                next_state, reward, done, _ = self.env.step(action)
+                next_features, reward, done, _ = self.env.step(action)
                 frame_count += 1
                 if render: self.env.render()
 
-                next_features = self.get_features(next_state)
                 next_Q = next_features.dot(self.theta)
                 next_action = self.get_action(next_Q, epsilon[episode - 1], random_state)
 
                 temp_diff = reward + (gamma * next_Q[next_action]) - Q[action]
                 self.theta += lr * temp_diff * features[action]
 
-                state = next_state
-                features = self.get_features(state)
+                features = next_features
                 Q = features.dot(self.theta) # Q for current state, from dot product with re-fined theta from above, in training
                 action = next_action
 
@@ -175,24 +154,22 @@ class P20:
         for episode in range(1, episodes + 1):
             ep_score = 0
 
-            state = self.env.reset()
-            if render: self.env.render()
-
-            features = self.get_features(state)
+            features = self.env.reset()
+            if render:
+                self.env.render()
             Q = features.dot(theta)
             action = np.argmax(Q)
 
             done = False
             while not done:
-                next_state, reward, done, _ = self.env.step(action)
-                if render: self.env.render()
-                ep_score += reward
-
-                next_features = self.get_features(next_state)
+                next_features, reward, done, _ = self.env.step(action)
+                if render:
+                    self.env.render()
                 next_Q = next_features.dot(theta)
                 next_action = np.argmax(next_Q)
 
                 action = next_action
+                ep_score += reward
             print(f"{episode}/{episodes} done \tEpisode Score: {ep_score}")
 
     def collect(self, episode, frame_count, highest_score, rolling_reward, rolling_reward_window100):
@@ -235,22 +212,18 @@ def training_p20(game_name="BreakoutNoFrameskip-v4", seed=0, solved_at=40,
     try:
         checkpoint = pd.read_pickle(checkpoint_filename)
         print(f'\nFound saved checkpoint during training for game {game_name}:')
-
         seed = checkpoint['seed']
         theta = checkpoint['theta']
         pretrained = checkpoint['pretrained']
         num_features = checkpoint['num_features']
-        null_features = np.zeros(shape=(num_features,))
         remove_layers = checkpoint['remove_layers']
         print(checkpoint)
     except:
         checkpoint = None
-
         if model_weights is not None:
             pretrained = True
         else:
             pretrained = False
-
         if checkpoint_filename is None:
             checkpoint_filename = game_name + '_checkpoint.pkl'
             print('Saving checkpoint to file', checkpoint_filename, 'instead')
@@ -275,13 +248,9 @@ def training_p20(game_name="BreakoutNoFrameskip-v4", seed=0, solved_at=40,
     if checkpoint is None:
         # Setting the number of features according to the last layer
         num_features = p20_model.layers[-1].output_shape[1]
-
         theta = np.zeros(num_features * env.action_space.n)
-        null_features = np.zeros(shape=(num_features,))
 
-    train_p20 = P20(env, game_name, seed, p20_model, remove_layers, pretrained, theta, num_features, null_features, metrics_filename, checkpoint, checkpoint_filename)
-    print(train_p20.p20.summary())
-    print('')
+    train_p20 = P20(env, game_name, seed, p20_model, remove_layers, pretrained, theta, num_features, metrics_filename, checkpoint, checkpoint_filename)
 
     theta = train_p20.linear_sarsa_p20(
         start_episode = 1,
@@ -344,11 +313,8 @@ def playing_p20(game_name="BreakoutNoFrameskip-v4", seed=0, episodes=100, render
     # Setting the number of features according to the last layer
     num_features = p20_model.layers[-1].output_shape[1]
     theta = np.load(theta_filename)
-    null_features = np.zeros(shape=(num_features,))
 
-    play_p20 = P20(env, game_name, seed, p20_model, remove_layers, False, theta, num_features, null_features, '', None, '')
-    print(play_p20.p20.summary())
-    print('')
+    play_p20 = P20(env, game_name, seed, p20_model, remove_layers, pretrained, theta, num_features, '', None, '')
 
     play_p20.play(theta, episodes, render)
 
