@@ -1,8 +1,11 @@
 import tensorflow as tf
 
 import numpy as np
+
 import pickle
+
 import pandas as pd
+import matplotlib.pyplot as plt
 
 from collections import deque
 
@@ -17,25 +20,6 @@ K_FRAMES_STACKED = 4
 # The size of the frame, after downsampling and cropping
 FRAME_SIZE = 84
 
-
-def p20_model():
-    input_states = tf.keras.Input(shape=(FRAME_SIZE, FRAME_SIZE, K_FRAMES_STACKED,))
-
-    layer1 = tf.keras.layers.Conv2D(32, 8, strides=4, activation="relu", data_format="channels_last")(input_states)
-    layer2 = tf.keras.layers.Conv2D(64, 4, strides=2, activation="relu", data_format="channels_last")(layer1)
-    layer3 = tf.keras.layers.Conv2D(64, 3, strides=1, activation="relu", data_format="channels_last")(layer2)
-
-    layer4 = tf.keras.layers.Flatten()(layer3)
-
-    output_features = tf.keras.layers.Dense(units=512)(layer4)
-    # The adjusted output layer, with no activation="relu" of shape 'output_shape'
-
-    model = tf.keras.Model(inputs=input_states, outputs=output_features)
-    model.compile(loss=tf.keras.losses.MeanSquaredError(), optimizer=tf.keras.optimizers.SGD())
-
-    return model
-
-
 def q_model(num_actions=4):
     # Network defined by the Deepmind paper
     inputs = tf.keras.layers.Input(shape=(FRAME_SIZE, FRAME_SIZE, K_FRAMES_STACKED,))
@@ -47,21 +31,48 @@ def q_model(num_actions=4):
 
     layer4 = tf.keras.layers.Flatten()(layer3)
 
-    layer5 = tf.keras.layers.Dense(512, activation="relu")(layer4)
+    # The adjusted output layer, with no activation="relu" of shape 'output_shape'
+    layer5 = tf.keras.layers.Dense(units=512)(layer4)
+
     action = tf.keras.layers.Dense(num_actions, activation="linear")(layer5)
 
     return tf.keras.Model(inputs=inputs, outputs=action)
 
 
 class P20:
-    def __init__(self, game_name="BreakoutNoFrameskip-v4"):
+    def __init__(self, env=None, game_name="BreakoutNoFrameskip-v4", seed=0,
+                 p20=None, remove_layers=-1, pretrained=False, theta=None, num_features=None, null_features=None,
+                 metrics_filename='metrics_breakout_loaded.pkl', checkpoint=None, checkpoint_filename='checkpoint_breakout_loaded.pkl'):
 
-        # Warp the frames, grey scale, stack four frames and scale to smaller ratio
-        self.env = wrap_deepmind(make_atari(game_name), frame_stack=True, scale=True)
-        # self.actions_identity = np.eye(self.env.action_space.n, self.env.action_space.n)
-        self.null_features = np.zeros(shape=(512, ))
+        self.game_name = game_name
+        self.env = env
 
-        self.p20 = p20_model()
+        self.seed = seed
+
+        self.p20 = p20
+        self.pretrained = pretrained
+        self.remove_layers = remove_layers
+
+        self.theta = theta
+        self.num_features = num_features
+        self.null_features = null_features
+        # self.actions_identity = np.eye(self.env.action_space.n, self.env.action_space.n) # Identity matrix for one-hot encoded actions
+
+        self.checkpoint = checkpoint
+        self.checkpoint_filename = checkpoint_filename
+
+        self.metrics = dict()
+        self.metrics_filename = metrics_filename
+        try:
+            self.metrics = pd.read_pickle(self.metrics_filename)
+            print(f'\nFound and using previously collected metrics during training for game {self.game_name}:')
+            print(pd.DataFrame.from_dict(self.metrics))
+            print('')
+        except:
+            if self.metrics_filename is None:
+                self.metrics_filename = game_name+'_metrics.pkl'
+                print('Saving metrics to file', self.metrics_filename, 'instead')
+
 
     def get_action(self, Q, epsilon, random):
         if random.rand() < epsilon:
@@ -81,7 +92,7 @@ class P20:
         conv_features = np.squeeze(conv_features)
 
         ### Null-Feature Encoding ###
-        features = np.zeros(shape=(self.env.action_space.n, 512 * self.env.action_space.n))
+        features = np.zeros(shape=(self.env.action_space.n, self.num_features * self.env.action_space.n))
         features[0] = np.concatenate((conv_features, self.null_features, self.null_features, self.null_features))
         features[1] = np.concatenate((self.null_features, conv_features, self.null_features, self.null_features))
         features[2] = np.concatenate((self.null_features, self.null_features, conv_features, self.null_features))
@@ -89,189 +100,213 @@ class P20:
         return features
         #############################
 
-
         ### One-Hot Encoding ###
         # conv_features = np.tile(conv_features, (self.env.action_space.n, 1))
         # return np.concatenate((conv_features, self.actions_identity), axis=1)
         ########################
 
-    def linear_sarsa_p20(self, start_episode, max_episodes, solved_at, theta, lr, gamma, epsilon, seed, render=True):
-        highest_score = 0
+    def linear_sarsa_p20(self, start_episode, max_episodes, solved_at, lr, gamma, epsilon, min_epsilon, render):
+        if self.checkpoint is None:
+            frame_count = 1
+            highest_score = 0
+            rolling_reward_window100 = deque(maxlen=100)
+        else:
+            start_episode = self.checkpoint['episode'] + 1
+            frame_count = self.checkpoint['frame_count']
+            highest_score = self.checkpoint['highest_score']
+            rolling_reward_window100 = deque(iterable=self.checkpoint['rolling_reward_window100'], maxlen=100)
 
-        random_state = np.random.RandomState(seed)
-
+        random_state = np.random.RandomState(self.seed)
         # lr = np.linspace(lr, 0, max_episodes)
-        epsilon = np.linspace(epsilon, 0, max_episodes)
+        epsilon = np.linspace(epsilon, min_epsilon, max_episodes)
 
-        frame_count = 0
-        rolling_reward_window100 = deque(maxlen=100)
-        for episode in range(start_episode, max_episodes):
-            if render: self.env.render()
+        for episode in range(start_episode, max_episodes + 1):
             state = self.env.reset()
-            features = self.get_features(state)
+            frame_count += 1
+            if render: self.env.render()
 
-            Q = features.dot(theta).reshape(-1, 1)
-            action = self.get_action(Q, epsilon[episode], random_state)
+            features = self.get_features(state)
+            Q = features.dot(self.theta)
+            action = self.get_action(Q, epsilon[episode - 1], random_state)
 
             ep_score = 0
             done = False
             while not done:
                 next_state, reward, done, _ = self.env.step(action)
+                frame_count += 1
                 if render: self.env.render()
-                next_features = self.get_features(next_state)
 
-                next_Q = next_features.dot(theta).reshape(-1, 1)
-                next_action = self.get_action(next_Q, epsilon[episode], random_state)
+                next_features = self.get_features(next_state)
+                next_Q = next_features.dot(self.theta)
+                next_action = self.get_action(next_Q, epsilon[episode - 1], random_state)
 
                 temp_diff = reward + (gamma * next_Q[next_action]) - Q[action]
-                theta += lr * temp_diff * features[action]
+                self.theta += lr * temp_diff * features[action]
 
                 state = next_state
                 features = self.get_features(state)
-
-                # Q for current state, from dot product with re-fined theta from above, in training
-                Q = features.dot(theta).reshape(-1, 1)
+                Q = features.dot(self.theta) # Q for current state, from dot product with re-fined theta from above, in training
                 action = next_action
 
-                frame_count += 1
                 ep_score += reward
 
             rolling_reward_window100.append(ep_score)
-            rolling_reward = np.mean(rolling_reward_window100)
-            highest_score = max(rolling_reward, highest_score)
-
             if len(rolling_reward_window100) == 100:
-                print(f"{episode + 1}/{max_episodes} done \tEpisode Score: {ep_score}"
+                rolling_reward = np.mean(rolling_reward_window100)
+                highest_score = max(rolling_reward, highest_score)
+
+                print(f"{episode}/{max_episodes} done \tEpisode Score: {ep_score}"
                       f"\t\tAvg Score 100 Episodes: {rolling_reward:2f}"
                       f"\tHighest Avg Score: {highest_score:2f}"
                       f"\t\tFrame count: {frame_count}")
+
+                if episode % 50 == 0:
+                    self.collect(episode, frame_count, highest_score, rolling_reward, rolling_reward_window100)
+
+                if rolling_reward >= solved_at:
+                    print('Solved environment', self.game_name, 'in', episode, 'episodes')
+                    break
             else:
-                print(f"{episode + 1}/{max_episodes} done \tEpisode Score: {ep_score}"
-                      f"\tFrame count: {frame_count}")
+                print(f"{episode}/{max_episodes} done \tEpisode Score: {ep_score} \tFrame count: {frame_count}")
 
-            if episode % 500 == 0:
-                checkpoint = dict()
-                checkpoint['episode'] = episode
-                checkpoint['theta'] = theta
+        return self.theta
 
-                with open("checkpoint.pkl", "wb") as cpoint:
-                    pickle.dump(checkpoint, cpoint)
-                cpoint.close()
+    def collect(self, episode, frame_count, highest_score, rolling_reward, rolling_reward_window100):
+        self.metrics[str(episode)] = dict()
+        self.metrics[str(episode)]['episode'] = episode
+        self.metrics[str(episode)]['frame_count'] = frame_count
+        self.metrics[str(episode)]['highest_score'] = highest_score
+        self.metrics[str(episode)]['rolling_reward'] = rolling_reward
+        with open(self.metrics_filename, "wb") as metrics_file:
+            pickle.dump(self.metrics, metrics_file)
+        metrics_file.close()
 
-            if rolling_reward >= solved_at:
-                print(f"Solved in {episode + 1} episodes")
-                break
+        self.checkpoint = dict()
+        self.checkpoint['episode'] = episode
+        self.checkpoint['frame_count'] = frame_count
+        self.checkpoint['theta'] = self.theta
+        self.checkpoint['pretrained'] = self.pretrained
+        self.checkpoint['num_features'] = self.num_features
+        self.checkpoint['remove_layers'] = self.remove_layers
+        self.checkpoint['highest_score'] = highest_score
+        self.checkpoint['rolling_reward_window100'] = rolling_reward_window100
+        self.checkpoint['seed'] = self.seed
+        with open(self.checkpoint_filename, "wb") as checkpoint_file:
+            pickle.dump(self.checkpoint, checkpoint_file)
+        checkpoint_file.close()
 
+def training_p20(game_name="BreakoutNoFrameskip-v4", seed=0, solved_at=40,
+                           max_episodes=55000, lr=0.00025, gamma=0.99, max_epsilon=1, min_epsilon=0.1, render=False,
+                           model_weights=None, remove_layers=-2, force_model=False,
+                           metrics_filename='metrics_breakout_loaded.pkl', checkpoint_filename='checkpoint_breakout_loaded.pkl', theta_filename='theta_breakout_loaded.npy'):
 
-def training_p20(game="BreakoutNoFrameskip-v4", seed=0, solved=40, theta_filename='theta_breakout.npy'):
+    if remove_layers not in [-1, -2]:
+        print('Can only remove the remaining Dense layer of size 512. HINT: Use remove_layers=-2 to remove this, or -1 to keep')
+        return
 
-    p20_train = P20(game_name=game)
-
-    try:
-        checkpoint = pd.read_pickle('checkpoint.pkl')
-        episode = checkpoint['episode'] +1
-        theta = checkpoint['theta']
-    except:
-        theta = np.zeros(512 * p20_train.env.action_space.n)
-        episode = 0
-
-    p20_train.linear_sarsa_p20(
-        start_episode= episode,
-        max_episodes = 100000,
-        solved_at    = solved,
-        theta        = theta,
-        lr           = 0.00025,
-        gamma        = 0.99,
-        epsilon      = 0.5,
-        seed         = seed,
-        render       = False
-    )
-
-    with open(theta_filename, 'wb') as f:
-        np.save(f, theta)
-    f.close()
-
-
-def preloaded_training_p20(game="BreakoutNoFrameskip-v4", seed=0, solved=40,
-                           model_weights='./model_breakout.h5', theta_filename='theta_loaded_breakout.npy'):
-
-    loaded_p20 = P20(game_name=game)
-
-    ## Loading the the weights
-    full_model = q_model(loaded_p20.env.action_space.n)
-    full_model.load_weights(model_weights)
-
-    ## Stripping away the last layer
-    partial_model = tf.keras.models.Model(inputs=full_model.input, outputs=full_model.layers[-2].output)
-    partial_model.compile(loss=tf.keras.losses.MeanSquaredError(), optimizer=tf.keras.optimizers.SGD())
-
-    ## Using the loaded model without the last layer
-    loaded_p20.p20 = partial_model
-    print(loaded_p20.p20.summary())
+    # Warp and stack the frames, preprocessing: stack four frames and scale to smaller ratio
+    env = wrap_deepmind(make_atari(game_name), frame_stack=True, scale=True)
+    p20_model = q_model(num_actions=env.action_space.n)
 
     try:
-        checkpoint = pd.read_pickle('checkpoint.pkl')
-        episode = checkpoint['episode'] +1
-        theta = checkpoint['theta']
-    except:
-        theta = np.zeros(512 * loaded_p20.env.action_space.n)
-        episode = 0
+        checkpoint = pd.read_pickle(checkpoint_filename)
+        print(f'\nFound saved checkpoint during training for game {game_name}:')
 
-    loaded_p20.linear_sarsa_p20(
-        start_episode= episode,
-        max_episodes = 500000,
-        solved_at    = solved,
-        theta        = theta,
-        lr           = 0.00025,
-        gamma        = 0.99,
-        epsilon      = 0.5,
-        seed         = seed,
-        render       = False
+        seed = checkpoint['seed']
+        theta = checkpoint['theta']
+        pretrained = checkpoint['pretrained']
+        num_features = checkpoint['num_features']
+        null_features = np.zeros(shape=(num_features,))
+        remove_layers = checkpoint['remove_layers']
+        print(checkpoint)
+    except:
+        checkpoint = None
+
+        if model_weights is not None:
+            pretrained = True
+        else:
+            pretrained = False
+
+        if checkpoint_filename is None:
+            checkpoint_filename = game_name + '_checkpoint.pkl'
+            print('Saving checkpoint to file', checkpoint_filename, 'instead')
+
+    try:
+        if pretrained:
+            p20_model.load_weights(model_weights)
+    except:
+        print(f'\nCould not find file for model weights: {model_weights}')
+        if checkpoint is not None and pretrained:
+            print('Checkpoint was saved while evaluating with a pretrained convolutional network')
+        if force_model:
+            pretrained = False
+            print('Using random weights instead')
+        else:
+            print('HINT (irreversible!): Set force_model=True in training_p20(..) to bypass using random weights instead')
+            return
+
+    # Stripping away the last remove_layers layers, and the layer for the actions
+    p20_model = tf.keras.models.Model(inputs=p20_model.input, outputs=p20_model.layers[remove_layers - 1].output)
+
+    if checkpoint is None:
+        # Setting the number of features according to the last layer
+        num_features = p20_model.layers[-1].output_shape[1]
+
+        theta = np.zeros(num_features * env.action_space.n)
+        null_features = np.zeros(shape=(num_features,))
+
+    train_p20 = P20(env, game_name, seed, p20_model, remove_layers, pretrained, theta, num_features, null_features, metrics_filename, checkpoint, checkpoint_filename)
+    print(train_p20.p20.summary())
+    print('')
+
+    theta = train_p20.linear_sarsa_p20(
+        start_episode = 1,
+        max_episodes  = max_episodes,
+        solved_at     = solved_at,
+        lr            = lr,
+        gamma         = gamma,
+        epsilon       = max_epsilon,
+        min_epsilon   = min_epsilon,
+        render        = render
     )
 
-    with open(theta_filename, 'wb') as f:
-        np.save(f, theta)
-    f.close()
+    if theta_filename is None:
+        theta_filename = train_p20.game_name+'_theta.npy'
+        print('Saved theta to file', theta_filename, 'instead')
+    with open(theta_filename, 'wb') as theta_file:
+        np.save(theta_file, theta)
+    theta_file.close()
 
+    df = pd.DataFrame.from_dict(pd.read_pickle(metrics_filename), orient='index')
+    print(f'\nCollected metrics during training for game {train_p20.game_name}:')
+    print(df)
+    print('')
 
-def testing_p20(game="BreakoutNoFrameskip-v4", seed=0,
-                model_weights='./model_breakout.h5', theta_filename='theta_loaded_breakout.npy'):
+    plt.plot(df['episode'], df['highest_score'])
+    plt.plot(df['episode'], df['rolling_reward'])
+    plt.show()
 
-    p20_test = P20(game_name=game)
-
-    ## Loading the the weights
-    full_model = q_model(p20_test.env.action_space.n)
-    full_model.load_weights(model_weights)
-
-    ## Stripping away the last layer
-    partial_model = tf.keras.models.Model(inputs=full_model.input, outputs=full_model.layers[-2].output)
-    partial_model.compile(loss=tf.keras.losses.MeanSquaredError(), optimizer=tf.keras.optimizers.SGD())
-
-    ## Using the loaded model without the last layer
-    p20_test.p20 = partial_model
-    print(p20_test.p20.summary())
-
-    ## Loading theta
-    with open(theta_filename, 'rb') as f:
-        theta = np.load(f)
-    f.close()
-
+    plt.plot(df['frame_count'], df['highest_score'])
+    plt.plot(df['frame_count'], df['rolling_reward'])
+    plt.show()
 
 with tf.device('/device:GPU:0'):
-    training_p20(
-        game = "BreakoutNoFrameskip-v4",
-        seed = 0,
-        solved = 40,
-        model_weights = './P20/model_breakout.npy',
-        theta_filename = './P20/theta_loaded_breakout.npy'
-    )
+    training_p20(game_name="BreakoutNoFrameskip-v4", seed=0, solved_at=40,
+                    max_episodes=1000, lr=0.00025, gamma=0.99, max_epsilon=1, min_epsilon=0.1, render=False,
+                    model_weights=None, remove_layers=-2, force_model=False,
+                    metrics_filename='./P20/metrics_breakout.pkl', checkpoint_filename='./P20/checkpoint_breakout.pkl', theta_filename='./P20/theta_breakout.npy')
 
-    """
-    testing_p20(
-        game = "BreakoutNoFrameskip-v4",
-        seed = 0,
-        num_actions = 4,
-        model_weights = '/content/drive/MyDrive/model_breakout.h5',
-        theta_filename = '/content/drive/MyDrive/theta_loaded_breakout.npy'
-    )
-    """
+"""
+with tf.device('/device:GPU:0'):
+    training_p20(game_name="BreakoutNoFrameskip-v4", seed=0, solved_at=40,
+                 max_episodes=55000, lr=0.00025, gamma=0.99, max_epsilon=1, min_epsilon=0.1, render=False,
+                 model_weights=None, remove_layers=-2, force_model=False,
+                 metrics_filename='/content/drive/MyDrive/new_metrics_breakout.pkl', checkpoint_filename='/content/drive/MyDrive/new_checkpoint_breakout.pkl',
+                 theta_filename='/content/drive/MyDrive/new_theta_breakout.npy')
+
+    training_p20(game_name="BreakoutNoFrameskip-v4", seed=0, solved_at=40,
+                 max_episodes=55000, lr=0.00025, gamma=0.99, max_epsilon=1, min_epsilon=0.1, render=False,
+                 model_weights='/content/drive/MyDrive/model_breakout.h5', remove_layers=-2, force_model=False,
+                 metrics_filename='/content/drive/MyDrive/new_metrics_breakout_loaded.pkl', checkpoint_filename='/content/drive/MyDrive/new_checkpoint_breakout_loaded.pkl',
+                 theta_filename='/content/drive/MyDrive/new_theta_breakout_loaded.npy')
+"""
