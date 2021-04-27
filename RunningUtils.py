@@ -91,8 +91,8 @@ class Metrics:
 
     def collect(self, episode, frame_count, highest_score, rolling_reward):
         self.metrics[str(episode)] = dict()
-        self.metrics[str(episode)]['start_episode'] = episode
-        self.metrics[str(episode)]['frame_count'] = frame_count
+        self.metrics[str(episode)]['episode'] = episode
+        self.metrics[str(episode)]['frame'] = frame_count
         self.metrics[str(episode)]['highest_score'] = highest_score
         self.metrics[str(episode)]['rolling_reward'] = rolling_reward
         with open(self.metrics_filename, "wb") as metrics_file:

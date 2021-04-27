@@ -218,8 +218,8 @@ def training_p20(game_name="BreakoutNoFrameskip-v4", seed=0, solved_at=40,
     plt.plot(df['episode'], df['rolling_reward'])
     plt.show()
 
-    plt.plot(df['frame_count'], df['highest_score'])
-    plt.plot(df['frame_count'], df['rolling_reward'])
+    plt.plot(df['frame'], df['highest_score'])
+    plt.plot(df['frame'], df['rolling_reward'])
     plt.show()
 
 def playing_p20(game_name="BreakoutNoFrameskip-v4", seed=0, episodes=100, render=True,
