@@ -154,10 +154,6 @@ def training_p20(game_name="BreakoutNoFrameskip-v4", seed=0, solved_at=40,
         print('Can only remove the remaining Dense layer of size 512. HINT: Use remove_layers=-2 to remove this, or -1 to keep')
         return
 
-    # Warp and stack the frames, preprocessing: stack four frames and scale to smaller ratio
-    env = wrap_deepmind(make_atari(game_name), frame_stack=True, scale=True)
-    p20_model = q_model(num_actions=env.action_space.n)
-
     metrics = Metrics(metrics_filename)
     training = Checkpoint(checkpoint_filename).restore()
     if training.has_checkpoint:
@@ -165,6 +161,12 @@ def training_p20(game_name="BreakoutNoFrameskip-v4", seed=0, solved_at=40,
     else:
         if model_weights is not None: pretrained = True
         else: pretrained = False
+
+    # Warp and stack the frames, preprocessing: stack four frames and scale to smaller ratio
+    env = wrap_deepmind(make_atari(game_name), frame_stack=True, scale=True)
+    env.seed(seed=seed)
+    p20_model = q_model(num_actions=env.action_space.n)
+
     if pretrained:
         try:
             p20_model.load_weights(model_weights)
