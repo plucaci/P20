@@ -1,9 +1,6 @@
 import tensorflow as tf
 
 import numpy as np
-
-import pickle
-
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -11,8 +8,8 @@ from collections import deque
 
 from baselines.common.atari_wrappers import make_atari, wrap_deepmind
 
-from LinearAtari import LinearAtariWrapper
-from RunningUtils import Checkpoint, Metrics
+from linear_atari import LinearAtariWrapper
+from running_utils import Checkpoint, Metrics
 
 """
   Input shape K_FRAMES_STACKED x FRAME_SIZE x FRAME_SIZE
@@ -70,7 +67,6 @@ class P20:
             frame_count, highest_score, rolling_reward_window100 = 0, 0, deque(maxlen=100)
 
         random_state = np.random.RandomState(seed)
-        # lr = np.linspace(lr, 0, max_episodes)
         epsilon = np.linspace(epsilon, min_epsilon, max_episodes)
 
         for episode in range(start_episode, max_episodes + 1):
@@ -95,7 +91,7 @@ class P20:
                 self.theta += lr * temp_diff * features[action]
 
                 features = next_features
-                Q = features.dot(self.theta) # Q for current state, from dot product with re-fined theta from above, in training
+                Q = features.dot(self.theta)
                 action = next_action
 
                 ep_score += reward
@@ -116,17 +112,23 @@ class P20:
 
                 if rolling_reward >= solved_at:
                     print('Solved environment in', episode, 'episodes')
+                    self.checkpoint.collect(episode, frame_count, self.theta, highest_score, rolling_reward_window100)
+                    self.metrics.collect(episode, frame_count, highest_score, rolling_reward)
                     break
             else:
                 print(f"{episode}/{max_episodes} done \tEpisode Score: {ep_score} \tFrame count: {frame_count}")
 
-        return self.theta
+        return self.metrics, self.theta
 
     def play(self, theta, episodes, render):
+        frame_count = 0
+        highest_score = 0
+
         for episode in range(1, episodes + 1):
             ep_score = 0
 
             features = self.env.reset()
+            frame_count += 1
             if render:
                 self.env.render()
             Q = features.dot(theta)
@@ -135,6 +137,7 @@ class P20:
             done = False
             while not done:
                 next_features, reward, done, _ = self.env.step(action)
+                frame_count += 1
                 if render:
                     self.env.render()
                 next_Q = next_features.dot(theta)
@@ -142,13 +145,15 @@ class P20:
 
                 action = next_action
                 ep_score += reward
+            self.metrics.collect(episode, frame_count, highest_score, ep_score)
             print(f"{episode}/{episodes} done \tEpisode Score: {ep_score}")
+        return self.metrics
 
 
 def training_p20(game_name="BreakoutNoFrameskip-v4", seed=0, solved_at=40,
-                           max_episodes=55000, lr=0.00025, gamma=0.99, max_epsilon=1, min_epsilon=0.1, render=False,
-                           model_weights=None, remove_layers=-2, force_model=False,
-                           metrics_filename='metrics_breakout_loaded.pkl', checkpoint_filename='checkpoint_breakout_loaded.pkl', theta_filename='theta_breakout_loaded.npy'):
+                 max_episodes=55000, lr=0.00025, gamma=0.99, max_epsilon=1, min_epsilon=0.1, render=False,
+                 model_weights=None, remove_layers=-2, force_model=False,
+                 metrics_filename='metrics_breakout_loaded.pkl', checkpoint_filename='checkpoint_breakout_loaded.pkl', theta_filename='theta_breakout_loaded.npy'):
 
     if remove_layers not in [-1, -2]:
         print('Can only remove the remaining Dense layer of size 512. HINT: Use remove_layers=-2 to remove this, or -1 to keep')
@@ -190,7 +195,7 @@ def training_p20(game_name="BreakoutNoFrameskip-v4", seed=0, solved_at=40,
     training.redefine(pretrained, num_features, remove_layers, seed)
 
     train_p20 = P20(env=wrapped_env, theta=theta, metrics=metrics, checkpoint=training)
-    theta = train_p20.linear_sarsa_p20(
+    metrics, theta = train_p20.linear_sarsa_p20(
         start_episode = 1,
         max_episodes  = max_episodes,
         solved_at     = solved_at,
@@ -209,7 +214,7 @@ def training_p20(game_name="BreakoutNoFrameskip-v4", seed=0, solved_at=40,
         np.save(theta_file, theta)
     theta_file.close()
 
-    df = pd.DataFrame.from_dict(pd.read_pickle(metrics_filename), orient='index')
+    df = pd.DataFrame.from_dict(metrics, orient='index')
     print(f'\nCollected metrics during training for game {game_name}:')
     print(df)
     print('')
@@ -222,9 +227,8 @@ def training_p20(game_name="BreakoutNoFrameskip-v4", seed=0, solved_at=40,
     plt.plot(df['frame'], df['rolling_reward'])
     plt.show()
 
-def playing_p20(game_name="BreakoutNoFrameskip-v4", seed=0, episodes=100, render=True,
-                model_weights=None, remove_layers=-2, force_model=False,
-                theta_filename='theta_breakout_loaded.npy'):
+def playing_p20(game_name="BreakoutNoFrameskip-v4", seed=0, episodes=100, render=True, model_weights=None, remove_layers=-2, force_model=False,
+                theta_filename='theta_breakout_loaded.npy', metrics_filename='metrics_breakout_loaded.pkl'):
 
     if remove_layers not in [-1, -2]:
         print('Can only remove the remaining Dense layer of size 512. HINT: Use remove_layers=-2 to remove this, or -1 to keep')
@@ -232,52 +236,49 @@ def playing_p20(game_name="BreakoutNoFrameskip-v4", seed=0, episodes=100, render
 
     # Warp and stack the frames, preprocessing: stack four frames and scale to smaller ratio
     env = wrap_deepmind(make_atari(game_name), frame_stack=True, scale=True)
+    env.seed(seed=seed)
+
+    metrics = Metrics(metrics_filename)
     p20_model = q_model(num_actions=env.action_space.n)
 
-    try:
-        if model_weights is not None:
+    if model_weights is not None:
+        try:
             p20_model.load_weights(model_weights)
-            pretrained = True
-    except:
-        print(f'\nCould not find file for model weights: {model_weights}')
-        if force_model:
-            pretrained = False
-            print('Using random weights instead')
-        else:
-            return
+        except:
+            print(f'\nCould not find file for model weights: {model_weights}')
+            if force_model:
+                print('Using random weights instead')
+            else:
+                print('HINT (irreversible!): Set force_model=True in training_p20(..) to bypass using random weights instead')
+                return
 
     # Stripping away the last remove_layers layers, and the layer for the actions
     p20_model = tf.keras.models.Model(inputs=p20_model.input, outputs=p20_model.layers[remove_layers - 1].output)
 
     # Setting the number of features according to the last layer
     num_features = p20_model.layers[-1].output_shape[1]
-    theta = np.load(theta_filename)
+    try:
+        theta = np.load(theta_filename)
+    except:
+        print('Could not load theta. Abort')
+        return
+    if theta.shape[0] != p20_model.layers[-1].output * env.action_space.n:
+        print('Theta could not be used with this architecture. Abort')
+        return
 
-    play_p20 = P20(env, game_name, seed, p20_model, remove_layers, pretrained, theta, num_features, '', None, '')
+    wrapped_env = LinearAtariWrapper(env=env, p20_model=p20_model, num_features=num_features)
+    play_p20 = P20(env=wrapped_env, theta=theta, metrics=metrics, checkpoint=None)
+    metrics = play_p20.play(theta, episodes, render)
 
-    play_p20.play(theta, episodes, render)
+    df = pd.DataFrame.from_dict(metrics, orient='index')
+    print(f'\nCollected metrics during training for game {game_name}:')
+    print(df)
+    print('')
 
-with tf.device('/device:GPU:0'):
-    training_p20(game_name="BreakoutNoFrameskip-v4", seed=0, solved_at=40,
-                    max_episodes=1000, lr=0.00025, gamma=0.99, max_epsilon=1, min_epsilon=0.1, render=False,
-                    model_weights=None, remove_layers=-2, force_model=False,
-                    metrics_filename='./P20/metrics_breakout.pkl', checkpoint_filename='./P20/checkpoint_breakout.pkl', theta_filename='./P20/theta_breakout.npy')
+    plt.plot(df['episode'], df['highest_score'])
+    plt.plot(df['episode'], df['rolling_reward'])
+    plt.show()
 
-playing_p20(game_name="BreakoutNoFrameskip-v4", seed=0, episodes=100, render=True,
-            model_weights=None, remove_layers=-2, force_model=False,
-            theta_filename='./new_theta_breakout_loaded.npy')
-
-"""
-with tf.device('/device:GPU:0'):
-    training_p20(game_name="BreakoutNoFrameskip-v4", seed=0, solved_at=40,
-                 max_episodes=55000, lr=0.00025, gamma=0.99, max_epsilon=1, min_epsilon=0.1, render=False,
-                 model_weights=None, remove_layers=-2, force_model=False,
-                 metrics_filename='/content/drive/MyDrive/new_metrics_breakout.pkl', checkpoint_filename='/content/drive/MyDrive/new_checkpoint_breakout.pkl',
-                 theta_filename='/content/drive/MyDrive/new_theta_breakout.npy')
-
-    training_p20(game_name="BreakoutNoFrameskip-v4", seed=0, solved_at=40,
-                 max_episodes=55000, lr=0.00025, gamma=0.99, max_epsilon=1, min_epsilon=0.1, render=False,
-                 model_weights='/content/drive/MyDrive/model_breakout.h5', remove_layers=-2, force_model=False,
-                 metrics_filename='/content/drive/MyDrive/new_metrics_breakout_loaded.pkl', checkpoint_filename='/content/drive/MyDrive/new_checkpoint_breakout_loaded.pkl',
-                 theta_filename='/content/drive/MyDrive/new_theta_breakout_loaded.npy')
-"""
+    plt.plot(df['frame'], df['highest_score'])
+    plt.plot(df['frame'], df['rolling_reward'])
+    plt.show()
