@@ -20,21 +20,22 @@ K_FRAMES_STACKED = 4
 # The size of the frame, after downsampling and cropping
 FRAME_SIZE = 84
 
+
 def q_model(num_actions=4):
     # Network defined by the Deepmind paper
     inputs = tf.keras.layers.Input(shape=(FRAME_SIZE, FRAME_SIZE, K_FRAMES_STACKED,))
 
     # Convolutions on the frames on the screen
-    layer1 = tf.keras.layers.Conv2D(32, 8, strides=4, activation="relu", data_format="channels_last")(inputs)
-    layer2 = tf.keras.layers.Conv2D(64, 4, strides=2, activation="relu", data_format="channels_last")(layer1)
-    layer3 = tf.keras.layers.Conv2D(64, 3, strides=1, activation="relu", data_format="channels_last")(layer2)
+    layer1 = tf.keras.layers.Conv2D(32, 8, strides=4, activation="relu", data_format="channels_last", kernel_initializer='he_normal')(inputs)
+    layer2 = tf.keras.layers.Conv2D(64, 4, strides=2, activation="relu", data_format="channels_last", kernel_initializer='he_normal')(layer1)
+    layer3 = tf.keras.layers.Conv2D(64, 3, strides=1, activation="relu", data_format="channels_last", kernel_initializer='he_normal')(layer2)
 
     layer4 = tf.keras.layers.Flatten()(layer3)
 
     # The adjusted output layer, with no activation="relu" of shape 'output_shape'
-    layer5 = tf.keras.layers.Dense(units=512)(layer4)
+    layer5 = tf.keras.layers.Dense(units=512, kernel_initializer='he_normal')(layer4)
 
-    action = tf.keras.layers.Dense(num_actions, activation="linear")(layer5)
+    action = tf.keras.layers.Dense(num_actions, activation="linear", kernel_initializer='he_normal')(layer5)
 
     return tf.keras.Model(inputs=inputs, outputs=action)
 
@@ -226,6 +227,7 @@ def training_p20(game_name="BreakoutNoFrameskip-v4", seed=0, solved_at=40,
     plt.plot(df['frame'], df['highest_score'])
     plt.plot(df['frame'], df['rolling_reward'])
     plt.show()
+
 
 def playing_p20(game_name="BreakoutNoFrameskip-v4", seed=0, episodes=100, render=True, model_weights=None, remove_layers=-2, force_model=False,
                 theta_filename='theta_breakout_loaded.npy', metrics_filename='metrics_breakout_loaded.pkl'):
