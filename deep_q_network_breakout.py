@@ -1,11 +1,57 @@
+"""
+Title: Deep Q-Learning for Atari Breakout
+Author: [Jacob Chapman](https://twitter.com/jacoblchapman) and [Mathias Lechner](https://twitter.com/MLech20)
+Date created: 2020/05/23
+Last modified: 2020/06/17
+Description: Play Atari Breakout with a Deep Q-Network.
+"""
+"""
+## Introduction
+
+This script shows an implementation of Deep Q-Learning on the
+`BreakoutNoFrameskip-v4` environment.
+
+### Deep Q-Learning
+
+As an agent takes actions and moves through an environment, it learns to map
+the observed state of the environment to an action. An agent will choose an action
+in a given state based on a "Q-value", which is a weighted reward based on the
+expected highest long-term reward. A Q-Learning Agent learns to perform its
+task such that the recommended action maximizes the potential future rewards.
+This method is considered an "Off-Policy" method,
+meaning its Q values are updated assuming that the best action was chosen, even
+if the best action was not chosen.
+
+### Atari Breakout
+
+In this environment, a board moves along the bottom of the screen returning a ball that
+will destroy blocks at the top of the screen.
+The aim of the game is to remove all blocks and breakout of the
+level. The agent must learn to control the board by moving left and right, returning the
+ball and removing all the blocks without the ball passing the board.
+
+### Note
+
+The Deepmind paper trained for "a total of 50 million frames (that is, around 38 days of
+game experience in total)". However this script will give good results at around 10
+million frames which are processed in less than 24 hours on a modern machine.
+
+### References
+
+- [Q-Learning](https://link.springer.com/content/pdf/10.1007/BF00992698.pdf)
+- [Deep Q-Learning](https://deepmind.com/research/publications/human-level-control-through-deep-reinforcement-learning)
+"""
+"""
+## Setup
+"""
+
 from baselines.common.atari_wrappers import make_atari, wrap_deepmind
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 
-with tf.device('/device:GPU:0'):
-
+with tf.device("/device:GPU:0"):
     # Configuration paramaters for the whole setup
     seed = 42
     gamma = 0.99  # Discount factor for past rewards
@@ -24,6 +70,15 @@ with tf.device('/device:GPU:0'):
     env = wrap_deepmind(env, frame_stack=True, scale=True)
     env.seed(seed)
 
+    """
+    ## Implement the Deep Q-Network
+    
+    This network learns an approximation of the Q-table, which is a mapping between
+    the states and actions that an agent will take. For every state we'll have four
+    actions, that can be taken. The environment provides the state, and the action
+    is chosen by selecting the larger of the four Q-values predicted in the output layer.
+    
+    """
 
     num_actions = 4
 
@@ -33,9 +88,9 @@ with tf.device('/device:GPU:0'):
         inputs = layers.Input(shape=(84, 84, 4,))
 
         # Convolutions on the frames on the screen
-        layer1 = layers.Conv2D(32, 8, strides=4, activation="relu", data_format="channels_last")(inputs)
-        layer2 = layers.Conv2D(64, 4, strides=2, activation="relu", data_format="channels_last")(layer1)
-        layer3 = layers.Conv2D(64, 3, strides=1, activation="relu", data_format="channels_last")(layer2)
+        layer1 = layers.Conv2D(32, 8, strides=4, activation="relu")(inputs)
+        layer2 = layers.Conv2D(64, 4, strides=2, activation="relu")(layer1)
+        layer3 = layers.Conv2D(64, 3, strides=1, activation="relu")(layer2)
 
         layer4 = layers.Flatten()(layer3)
 
@@ -53,9 +108,13 @@ with tf.device('/device:GPU:0'):
     # loss between the Q-values is calculated the target Q-value is stable.
     model_target = create_q_model()
 
+
+    """
+    ## Train
+    """
     # In the Deepmind paper they use RMSProp however then Adam optimizer
     # improves training time
-    optimizer = keras.optimizers.RMSprop(lr=0.00025, rho=0.95, epsilon=0.01, clipnorm=1.0)
+    optimizer = keras.optimizers.Adam(learning_rate=0.00025, clipnorm=1.0)
 
     # Experience replay buffers
     action_history = []
@@ -79,14 +138,14 @@ with tf.device('/device:GPU:0'):
     # How often to update the target network
     update_target_network = 10000
     # Using huber loss for stability
-    loss_function = keras.losses.MeanSquaredError()
+    loss_function = keras.losses.Huber()
 
     while True:  # Run until solved
         state = np.array(env.reset())
         episode_reward = 0
 
         for timestep in range(1, max_steps_per_episode):
-            # env.render(); #Adding this line would show the attempts
+            # env.render(); Adding this line would show the attempts
             # of the agent in a pop up window.
             frame_count += 1
 
@@ -203,3 +262,14 @@ with tf.device('/device:GPU:0'):
             model_target.save_weights("dqn_target")
             break
 
+"""
+## Visualizations
+Before any training:
+![Imgur](https://i.imgur.com/rRxXF4H.gif)
+
+In early stages of training:
+![Imgur](https://i.imgur.com/X8ghdpL.gif)
+
+In later stages of training:
+![Imgur](https://i.imgur.com/Z1K6qBQ.gif)
+"""
