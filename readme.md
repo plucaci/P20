@@ -1,6 +1,4 @@
 # <center>On learning to play ATARI games using convolutional feature vectors for linear function approximation </center>
-##Download Source
->
 
 ## Installing Guide
 > Move the **P20 directory** in **/content/drive/MyDrive/** to obtain the path **/content/drive/MyDrive/P20/** <br>
