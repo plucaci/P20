@@ -4,7 +4,7 @@ path.append("frozen_lake.py")
 path.append("tabular.py")
 
 from tabular import FrozenLake, LinearWrapper
-from model_free import linear_sarsa, linear_sarsa_p20
+from model_free import linear_sarsa, linear_sarsa_p20, linear_sarsa_p20_optim
 
 import numpy as np
 
@@ -51,6 +51,17 @@ def main():
     theta = np.zeros(linear_env.n_features)
     linear_sarsa_p20(env=linear_env, theta=theta,
                      max_episodes=max_episodes, lr=0.0025, gamma=gamma, epsilon=epsilon, seed=seed, training=True)
+    policy, value = linear_env.decode_policy(theta)
+    linear_env.render(policy, value)
+    print('')
+
+
+    print('## Linear Sarsa (p20''s RL testing): Frozen Lake, Optimised')
+    env = FrozenLake(lake, slip=0.1, max_steps=16, seed=seed)
+    linear_env = LinearWrapper(env)
+
+    theta = np.zeros(linear_env.n_features)
+    linear_sarsa_p20_optim(env=linear_env, theta=theta, start_episode=1, max_episodes=max_episodes, lr=0.0025, gamma=gamma, epsilon=epsilon, seed=seed)
     policy, value = linear_env.decode_policy(theta)
     linear_env.render(policy, value)
     print('')

@@ -9,69 +9,36 @@ class Checkpoint:
         self.checkpoint_filename = checkpoint_filename
 
         self.has_checkpoint = False
-
-        self.start_episode = None
-        self.frame_count = None
-        self.theta = None
-        self.pretrained = None
-        self.num_features = None
-        self.remove_layers = None
-        self.highest_score = None
-        self.rolling_reward_window100 = None
-        self.seed = None
-
-    def redefine(self, pretrained, num_features, remove_layers, seed):
-        self.pretrained = pretrained
-        self.num_features = num_features
-        self.remove_layers = remove_layers
-        self.seed = seed
-
-    def get_counters(self):
-        return self.start_episode, self.frame_count, self.highest_score, self.rolling_reward_window100
-
-    def get_training_properties(self):
-        return self.seed, self.theta, self.pretrained, self.num_features, self.remove_layers
-
-    def restore(self):
+        self.checkpoint = dict()
         try:
-            checkpoint = pd.read_pickle(self.checkpoint_filename)
-            self.has_checkpoint = True
+            self.checkpoint = pd.read_pickle(self.checkpoint_filename)
+            self.checkpoint['rolling_reward_window100'] = deque(iterable=self.checkpoint['rolling_reward_window100'], maxlen=len(self.checkpoint['rolling_reward_window100']))
 
-            print(f'\nUsing saved checkpoint during training:')
-            print(checkpoint)
+            print(f'\nUsing previously saved checkpoint:')
+            print(pd.DataFrame.from_dict(self.checkpoint, orient="index"))
             print('')
 
-            self.start_episode = checkpoint['start_episode']
-            self.frame_count = checkpoint['frame_count']
-            self.theta = checkpoint['theta']
-            self.pretrained = checkpoint['pretrained']
-            self.num_features = checkpoint['num_features']
-            self.remove_layers = checkpoint['remove_layers']
-            self.highest_score = checkpoint['highest_score']
-            self.rolling_reward_window100 = deque(iterable=checkpoint['rolling_reward_window100'], maxlen=len(checkpoint['rolling_reward_window100']))
-            self.seed = checkpoint['seed']
+            self.has_checkpoint = True
         except:
             if self.checkpoint_filename is None:
                 self.checkpoint_filename = time.strftime('%d-%m-%Y_%H-%M-%S') + '_checkpoint.pkl'
                 print('Saving checkpoint to file', self.checkpoint_filename, 'instead')
 
-        return self
+    def get_counters(self):
+        return self.checkpoint["start_episode"], self.checkpoint["frame_count"], self.checkpoint["highest_score"], self.checkpoint["rolling_reward_window100"]
+
+    def get_training_properties(self):
+        return self.checkpoint["seed"], self.checkpoint["theta"], self.checkpoint["num_features"]
 
     def collect(self, episode, frame_count, theta, highest_score, rolling_reward_window100):
-        checkpoint = dict()
-        checkpoint['start_episode'] = episode
-        checkpoint['frame_count'] = frame_count
-        checkpoint['theta'] = theta
-        checkpoint['pretrained'] = self.pretrained
-        checkpoint['num_features'] = self.num_features
-        checkpoint['remove_layers'] = self.remove_layers
-        checkpoint['highest_score'] = highest_score
-        checkpoint['rolling_reward_window100'] = rolling_reward_window100
-        checkpoint['seed'] = self.seed
+        self.checkpoint['start_episode'] = episode
+        self.checkpoint['frame_count'] = frame_count
+        self.checkpoint['theta'] = theta
+        self.checkpoint['highest_score'] = highest_score
+        self.checkpoint['rolling_reward_window100'] = rolling_reward_window100
         with open(self.checkpoint_filename, "wb") as checkpoint_file:
-            pickle.dump(checkpoint, checkpoint_file)
+            pickle.dump(self.checkpoint, checkpoint_file)
         checkpoint_file.close()
-
 
 class Metrics:
     def __init__(self, metrics_filename):
@@ -86,8 +53,8 @@ class Metrics:
             print('')
         except:
             if self.metrics_filename is None:
-                metrics_filename = time.strftime('%d-%m-%Y_%H-%M-%S') + '_metrics.pkl'
-                print('Saving metrics to file', metrics_filename, 'instead')
+                self.metrics_filename = time.strftime('%d-%m-%Y_%H-%M-%S') + '_metrics.pkl'
+                print('Saving metrics to file', self.metrics_filename, 'instead')
 
     def collect(self, episode, frame_count, highest_score, rolling_reward):
         self.metrics[str(episode)] = dict()

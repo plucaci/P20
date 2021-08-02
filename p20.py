@@ -4,40 +4,14 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+import time
+
 from collections import deque
 
 from baselines.common.atari_wrappers import make_atari, wrap_deepmind
 
 from linear_atari import LinearAtariWrapper
 from running_utils import Checkpoint, Metrics
-
-"""
-  Input shape K_FRAMES_STACKED x FRAME_SIZE x FRAME_SIZE
-  As proposed in Chapter 2.2.1.2.1, this is 84 x 84 x 4
-"""
-# Number of consecutive frames stacked
-K_FRAMES_STACKED = 4
-# The size of the frame, after downsampling and cropping
-FRAME_SIZE = 84
-
-
-def q_model(num_actions=4):
-    # Network defined by the Deepmind paper
-    inputs = tf.keras.layers.Input(shape=(FRAME_SIZE, FRAME_SIZE, K_FRAMES_STACKED,))
-
-    # Convolutions on the frames on the screen
-    layer1 = tf.keras.layers.Conv2D(32, 8, strides=4, activation="relu", data_format="channels_last", kernel_initializer='he_normal')(inputs)
-    layer2 = tf.keras.layers.Conv2D(64, 4, strides=2, activation="relu", data_format="channels_last", kernel_initializer='he_normal')(layer1)
-    layer3 = tf.keras.layers.Conv2D(64, 3, strides=1, activation="relu", data_format="channels_last", kernel_initializer='he_normal')(layer2)
-
-    layer4 = tf.keras.layers.Flatten()(layer3)
-
-    # The adjusted output layer, with no activation="relu" of shape 'output_shape'
-    layer5 = tf.keras.layers.Dense(units=512, kernel_initializer='he_normal')(layer4)
-
-    action = tf.keras.layers.Dense(num_actions, activation="linear", kernel_initializer='he_normal')(layer5)
-
-    return tf.keras.Model(inputs=inputs, outputs=action)
 
 
 class P20:
@@ -70,7 +44,7 @@ class P20:
         random_state = np.random.RandomState(seed)
         epsilon = np.linspace(epsilon, min_epsilon, max_episodes)
 
-        for episode in range(start_episode, max_episodes + 1):
+        for episode in range(start_episode, 20302 + 1):
             features = self.env.reset()
             frame_count += 1
             if render: self.env.render()
@@ -151,51 +125,24 @@ class P20:
         return self.metrics
 
 
-def training_p20(game_name="BreakoutNoFrameskip-v4", seed=0, solved_at=40,
-                 max_episodes=55000, lr=0.00025, gamma=0.99, max_epsilon=1, min_epsilon=0.1, render=False,
-                 model_weights=None, remove_layers=-2, force_model=False,
-                 metrics_filename='metrics_breakout_loaded.pkl', checkpoint_filename='checkpoint_breakout_loaded.pkl', theta_filename='theta_breakout_loaded.npy'):
-
-    if remove_layers not in [-1, -2]:
-        print('Can only remove the remaining Dense layer of size 512. HINT: Use remove_layers=-2 to remove this, or -1 to keep')
-        return
+def training_p20(env=None, seed=0, solved_at=40, render=False,
+                 max_episodes=55000, lr=0.00025, gamma=0.99, max_epsilon=1, min_epsilon=0.1, p20_model=None,
+                 metrics_filename=None, checkpoint_filename=None, theta_filename=None):
 
     metrics = Metrics(metrics_filename)
-    training = Checkpoint(checkpoint_filename).restore()
+    training = Checkpoint(checkpoint_filename)
     if training.has_checkpoint:
-        seed, theta, pretrained, num_features, remove_layers = training.get_training_properties()
+        seed, theta, num_features  = training.get_training_properties()
+        assert num_features == p20_model.layers[-1].output_shape[1], "Size of model output does not match size of feature from checkpoint file given"
     else:
-        if model_weights is not None: pretrained = True
-        else: pretrained = False
-
-    # Warp and stack the frames, preprocessing: stack four frames and scale to smaller ratio
-    env = wrap_deepmind(make_atari(game_name), frame_stack=True, scale=True)
-    env.seed(seed=seed)
-    p20_model = q_model(num_actions=env.action_space.n)
-
-    if pretrained:
-        try:
-            p20_model.load_weights(model_weights)
-        except:
-            print(f'\nCould not find file for model weights: {model_weights}')
-            if force_model:
-                pretrained = False
-                print('Using random weights instead')
-            else:
-                print('HINT (irreversible!): Set force_model=True in training_p20(..) to bypass using random weights instead')
-                return
-
-    # Stripping away the last remove_layers layers, and the layer for the actions
-    p20_model = tf.keras.models.Model(inputs=p20_model.input, outputs=p20_model.layers[remove_layers - 1].output)
-    if not training.has_checkpoint:
-        # Setting the number of features according to the last layer
         num_features = p20_model.layers[-1].output_shape[1]
         theta = np.zeros(num_features * env.action_space.n)
+    training.checkpoint["seed"] = seed
+    training.checkpoint["num_features"] = num_features
 
-    wrapped_env = LinearAtariWrapper(env=env, p20_model=p20_model, num_features=num_features)
-    training.redefine(pretrained, num_features, remove_layers, seed)
+    linear_env = LinearAtariWrapper(env=env, p20_model=p20_model, num_features=num_features)
 
-    train_p20 = P20(env=wrapped_env, theta=theta, metrics=metrics, checkpoint=training)
+    train_p20 = P20(env=linear_env, theta=theta, metrics=metrics, checkpoint=training)
     metrics, theta = train_p20.linear_sarsa_p20(
         start_episode = 1,
         max_episodes  = max_episodes,
@@ -209,14 +156,14 @@ def training_p20(game_name="BreakoutNoFrameskip-v4", seed=0, solved_at=40,
     )
 
     if theta_filename is None:
-        theta_filename = game_name+'_theta.npy'
+        theta_filename = time.strftime('%d-%m-%Y_%H-%M-%S') +'_theta.npy'
         print('Saved theta to file', theta_filename, 'instead')
     with open(theta_filename, 'wb') as theta_file:
         np.save(theta_file, theta)
     theta_file.close()
 
-    df = pd.DataFrame.from_dict(metrics, orient='index')
-    print(f'\nCollected metrics during training for game {game_name}:')
+    df = pd.DataFrame.from_dict(metrics.metrics, orient='index')
+    print('\nCollected metrics during training')
     print(df)
     print('')
 
@@ -237,11 +184,11 @@ def playing_p20(game_name="BreakoutNoFrameskip-v4", seed=0, episodes=100, render
         return
 
     # Warp and stack the frames, preprocessing: stack four frames and scale to smaller ratio
-    env = wrap_deepmind(make_atari(game_name), frame_stack=True, scale=True)
+    env = wrap_deepmind(make_atari(game_name), episode_life=False, frame_stack=True, scale=True)
     env.seed(seed=seed)
 
     metrics = Metrics(metrics_filename)
-    p20_model = q_model(num_actions=env.action_space.n)
+    p20_model = None
 
     if model_weights is not None:
         try:
