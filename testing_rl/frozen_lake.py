@@ -34,7 +34,7 @@ def main():
     epsilon = 0.5
     gamma = 0.9
 
-    print('## Linear Sarsa (origin): Frozen Lake')
+    print('## Linear Sarsa (original): Frozen Lake')
     env = FrozenLake(lake, slip=0.1, max_steps=16, seed=seed)
     linear_env = LinearWrapper(env)
 
