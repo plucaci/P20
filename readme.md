@@ -66,13 +66,13 @@ And 1 RL agent taking random steps in an environment to collect the observations
 > #### linear_atari.py
 > Same as the Baseline Method but accommodating PyTorch over Keras.
 ### DeepSarsa
-> The Deep Sarsa & Deep Linear Sarsa Methods described in the final report. <br>
+> The Deep Sarsa (Elfwing, et al., 2017) & Deep Linear Sarsa Methods described in the final report. <br>
 > **Encoder architecture from (Mnih et al., 2015) implemented using PyTorch.** <br>
 > **2 different variants of the encoder: with linear function approximation, and with nonlinear.**
 > #### Deep-Sarsa.ipynb
-> 1. Launcher for Deep Sarsa. <br>
+> 1. Launcher for Deep Sarsa (Elfwing, et al., 2017). <br>
 > 2. Architecture definition in PyTorch for the model from (Mnih et al., 2015). <br>
-> 3. Configuration of hyperparameters for Deep Sarsa is included in this notebook
+> 3. Configuration of hyperparameters for Deep Sarsa (Elfwing, et al., 2017) is included in this notebook
 > #### Deep-Linear-Sarsa.ipynb
 > 1. Launcher for Deep Linear Sarsa. <br>
 > 2. Architecture definition in PyTorch for the model from (Mnih et al., 2015), with ablation of the last activation function ReLU. <br>
@@ -118,10 +118,10 @@ It is certain that such observation can be made about the results tagged "(origi
 > **To inspect the training**, look up the output of the last code cell in a notebook.
 
 ## Reproducing Results and Executing Code Cells
-> With the exception for Deep Sarsa and Deep Linear Sarsa, where training has been early stopped owing to computational constraints; Training has been completed in all other cases. <br>
+> With the exception for Deep Sarsa (Elfwing, et al., 2017) and Deep Linear Sarsa, where training has been early stopped owing to computational constraints; Training has been completed in all other cases. <br>
 You will have to change the values passed to training_p20() method (the checkpoint_filename, metrics_filename, and theta_filename) called in a launcher notebook, to start training from scratch. <br>
 Instead, if you want to verify the algorithms, you can do so by running all code cells, beginning with the first, in any notebook. This will only show you the plots, checkpoints, and metrics, indicating the code is working. <br>
-To verify Deep Sarsa and Deep Linear Sarsa, you can do the same as above, and then terminate the execution before completing 50 more episodes to avoid saving new weights and metrics. <br> <br>
+To verify Deep Sarsa (Elfwing, et al., 2017) and Deep Linear Sarsa, you can do the same as above, and then terminate the execution before completing 50 more episodes to avoid saving new weights and metrics. <br> <br>
 **For purposes of reproducibility, the hyperparameters reported for RL training can be found in the launcher notebooks, and in rare cases in the p20.py files if a function. Other sets of hyperparameters can be found in the Probe-Supervised-Encoding notebook, or in the notebook for pretraining the ./DQN**
 
 ## Checkpoint System and Metrics Collection
@@ -181,3 +181,4 @@ ___________
 *Anand, A. et al., 2020. Unsupervised State Representation Learning in Atari, s.l.: arXiv:1906.08226v6.<br>
 Mnih, V. et al., 2013. Playing Atari with Deep Reinforcement Learning, s.l.: arXiv:1312.5602v1.<br>
 Mnih, V. et al., 2015. Human-level control through deep reinforcement learning. Nature, 518(7540), pp. 529-533.<br>*
+Elfwing, S., Uchibe, E. & Doya, K., 2017. Sigmoid-Weighted Linear Units for Neural Network Function Approximation in Reinforcement Learning, s.l.: arXiv:1702.03118v3.
