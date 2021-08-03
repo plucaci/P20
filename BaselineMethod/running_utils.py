@@ -114,19 +114,24 @@ class Checkpoint:
 
     def collect(self, episode, frame_count, theta, highest_score, rolling_reward_window100):
         '''
-        Collector of last episode completed, last time step completed, theta after its last optimisation update, the highest score, and last 100 episode rewards. <br>
+        Collector of last episode completed, last time step completed, theta after its last optimisation update, the highest score, and last 100 episode rewards.
+
         The method stores the values of these parameters in a dictionary whose structure can be found listed "Checkpoint Dictionary Data Structure" at the top of ./BaselineMethod/running_utils.py;
         Then, it dumps the dictionary to disk in a file of format .pkl whose filename was either, specified in the checkpoint_filename attribute of class Checkpoint, or timestamped.
-        The method closes the file soon after. <br>
+        The method closes the file soon after.
+
         See the Checkpoint class for how files are handled during collections.
 
         Parameters
         ----------
-        tuple[int, int, int, deque]
-            start_episode - the episode completed before checkpoint. start_episode+1 is the episode training is meant to be resumed from <br>
-            frame_count - the last time step completed before checkpoint. frame_count+1 is the frame training is meant to be resumed from <br>
-            highest_score - the highest average of cumulative scores over the last 100 episodes, prior to the checkpoint <br>
-            rolling_reward_window100 - the cumulative scores of the last 100 episodes (as a deque object with rolling window of size 100)
+        start_episode : int
+            The episode completed before checkpoint. start_episode+1 is the episode training is meant to be resumed from <br>
+        frame_count : int
+            The last time step completed before checkpoint. frame_count+1 is the frame training is meant to be resumed from <br>
+        highest_score : int
+            The highest rolling average of episode scores over the last 100 episodes, prior to the checkpoint <br>
+        rolling_reward_window100 : deque
+            The cumulative scores of the last 100 episodes (as a deque object with rolling window of size 100)
         '''
 
         self.checkpoint['start_episode'] = episode
@@ -186,6 +191,28 @@ class Metrics:
                 print('Saving metrics to file', self.metrics_filename, 'instead')
 
     def collect(self, episode, frame_count, highest_score, rolling_reward):
+        '''
+        Collector of last episode completed, last time step completed, the highest average of 100 episode scores, and average over 100 episode scores.
+
+        The method appends, using the episode as key, all the values of these parameters in a nested dictionary.
+        The data structure of the dictionary holding the values can be found listed "Metrics Dictionary Data Structure" at the top of ./BaselineMethod/running_utils.py;
+
+        Then, it dumps the nested dictionary with the update to the disk in a file of format .pkl whose filename was either, specified in the metrics_filename attribute of class Metrics, or timestamped.
+        The method closes the file soon after.
+
+        See the Metrics class for how files are handled during collections.
+
+        Parameters
+        ----------
+        episode : int
+            The episode completed before collection. Also the key to append the values to the nested dictionary
+        frame_count : int
+            The last time step completed before collection.
+        highest_score : int
+            The highest rolling average of episode scores over the last 100 episodes, prior to the collection
+        rolling_reward : int
+            The rolling average over 100 episode scores
+        '''
         self.metrics[str(episode)] = dict()
         self.metrics[str(episode)]['episode'] = episode
         self.metrics[str(episode)]['frame'] = frame_count

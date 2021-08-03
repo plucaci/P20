@@ -19,7 +19,7 @@ class LinearAtariWrapper:
     env : gym.Wrapper
         An environment wrapped with the layers of wrappers returned by baselines.common.atari_wrappers
     p20_model : tensorflow.keras.models.Model
-        This is the model resulting from the the 2 ablations to the architecture. The resulting model must be of type tensorflow.keras.models.Model <br>
+        This is the model resulting from the 2 ablations to the architecture. The resulting model must be of type tensorflow.keras.models.Model <br>
         It cannot ever be None. p20_model can be considered function phi() described in the report. <br>
         Also, the size of the model output must match the number of features given in the next parameter.
     num_features : int
