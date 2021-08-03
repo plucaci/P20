@@ -1,10 +1,13 @@
 # <center>On learning to play ATARI games using convolutional feature vectors for linear function approximation </center>
 
+## Download Link
+> https://github.com/plucaci/P20/archive/refs/tags/submission.zip
+
 ## Installing Guide
 > Move the **P20 directory** in **/content/drive/MyDrive/** to obtain the path **/content/drive/MyDrive/P20/** <br>
 > This path is hard-coded in the notebooks to automatically any dependencies needed when you run the code cells. <br>
 > **You must follow this convention**. <br><br>
->  Alternatively, should you wish to use your own machine, you will have to comment out the lines importing google.colab libraries. <br>
+>  Alternatively, should you wish to use your own machine, you will have to comment out the lines importing google.colab libraries, along with the change directory commands. <br>
 > Google Colaboratory has a free service offering GPU.
 
 > **You will not be able to run the code without a GPU, as the models have been trained on a GPU.** 
@@ -131,7 +134,7 @@ To verify Deep Sarsa (Elfwing, et al., 2017) and Deep Linear Sarsa, you can do t
 **Both systems have been tested thoroughly** through multiple series of training prior to deploying any applied method, and **are highly effective to resume training, and for data collection, respectively**. See running_utils.py in the directory of an applied method for implementation specifics. <br>
 
 ### Checkpoint Dictionary Data Structure 
-> **Every 50 episodes, beginning with the 100th episode**, the following data structure is saved to disk in a .pkl file. <br>
+> **Every 50 episodes, beginning with the episode 100**, the following data structure is saved to disk in a .pkl file. <br>
 > **Saving occurs only after an episode has finished!**
 > Training is resumed from episode start_episode+1 using these properties. <br>
 > There is no history of checkpoints, and only the last checkpoint is saved.<br>
@@ -163,7 +166,7 @@ To verify Deep Sarsa (Elfwing, et al., 2017) and Deep Linear Sarsa, you can do t
 }
 ```
 ### Metrics Dictionary Data Structure
-> **Every 50 episodes, beginning with the 100th episode**, the following data structure is saved to disk in a .pkl file. <br>
+> **Every 50 episodes, beginning with the episode 100**, the following data structure is saved to disk in a .pkl file. <br>
 > **Saving occurs only after an episode has finished!** <br>
 > The tag < episode > is a key and the episode which holds the tuple in a larger dictionary.
 > In contrast to saving a checkpoint, this tuple is appended to a larger dictionary containing more such tuples, then saved to disk.<br>
