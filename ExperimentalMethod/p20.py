@@ -77,6 +77,7 @@ class P20:
 
     def get_action(self, Q, epsilon, random):
         ''' Epsilon-Greedy Policy and Random Tie-Breaking
+        (Sutton & Barto, 1998; Sutton & Barto, 2018), Epsilon-Greedy Policy
 
         Returns an integer corresponding with an action from the space range(number_of_actions_in_env)
 
@@ -113,6 +114,7 @@ class P20:
 
     def train(self, start_episode, max_episodes, solved_at, lr, gamma, epsilon, min_epsilon, render, seed):
         ''' On-Policy Sarsa Algorithm for Control. Training of the RL agent for the Experimental Method.
+        (Sutton & Barto, 1998; Sutton & Barto, 2018), Sarsa for Control
 
         Parameters
         ----------
