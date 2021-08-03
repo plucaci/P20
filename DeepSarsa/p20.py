@@ -16,6 +16,20 @@ global device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class P20:
+
+    '''
+    The P20 object is the main class for training the RL agent for both DeepSarsa & Deep Linear Sarsa Method
+
+    Parameters
+    ----------
+    env : LinearAtariWrapper object
+        Environment wrapper with the environment passed. See class LinearAtariWrapper for more
+    theta : NumPy object
+        The theta vector of weights to be optimised for training the RL agent
+        In the Baseline Method it has shape (number_of_features * number_of_actions_in_env)
+    metrics : Metrics object
+        Metrics object for measurements. See class Metrics for more
+    '''
     def __init__(self, env=None, metrics=None, checkpoint=None, p20_model=None, optimizer=None, criterion=None):
         self.env = env
 
@@ -27,6 +41,28 @@ class P20:
         self.criterion = criterion
 
     def get_action(self, Q, epsilon, random):
+        ''' Epsilon-Greedy Policy and Random Tie-Breaking
+
+        Returns an integer corresponding with an action from the space range(number_of_actions_in_env)
+
+        Parameters
+        ----------
+        Q : numpy.ndarray
+            Action-values obtained following linear value function approximation
+            Q-values array of shape (4, 1)
+        epsilon : float
+            Linearly annealed epsilon value
+            The probability of choosing a greedy action to facilitate the exploitation of learned weights
+        random : numpy.random.RandomState
+            Random state with environment seed for choosing a random action to facilitate environment exploration
+
+        Returns
+        ----------
+        int
+            random integer from set, if random.rand() < epsilon, or if epsilon >= random.rand() but all values in Q are close to max(Q);
+            Otherwise, the action whose value is maximum: argmax(Q) for exploitation of learned weights with probability epsilon
+        '''
+
         if random.rand() < epsilon:
             a = random.choice(self.env.action_space.n)
         else:
