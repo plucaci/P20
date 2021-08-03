@@ -181,3 +181,4 @@ ___________
 *Anand, A. et al., 2020. Unsupervised State Representation Learning in Atari, s.l.: arXiv:1906.08226v6.<br>
 Mnih, V. et al., 2013. Playing Atari with Deep Reinforcement Learning, s.l.: arXiv:1312.5602v1.<br>
 Mnih, V. et al., 2015. Human-level control through deep reinforcement learning. Nature, 518(7540), pp. 529-533.<br>*
+Elfwing, S., Uchibe, E. & Doya, K., 2017. Sigmoid-Weighted Linear Units for Neural Network Function Approximation in Reinforcement Learning, s.l.: arXiv:1702.03118v3.
